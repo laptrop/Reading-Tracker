@@ -224,65 +224,6 @@
             margin: 20px 0;
         }
 
-        .browser-warning {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            color: #856404;
-        }
-
-        .debug-info {
-            background: #e9ecef;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
-            font-size: 0.85em;
-            color: #495057;
-            font-family: monospace;
-            max-height: 200px;
-            overflow-y: auto;
-            position: relative;
-        }
-
-        .debug-info .log-entry {
-            padding: 3px 0;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .debug-info .log-entry:last-child {
-            border-bottom: none;
-        }
-
-        .debug-info .timestamp {
-            color: #6c757d;
-            font-size: 0.9em;
-        }
-
-        .copy-log-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 5px 10px;
-            font-size: 0.8em;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            min-width: auto;
-            margin: 0;
-        }
-
-        .copy-log-btn:hover {
-            background: #5568d3;
-        }
-
-        .copy-log-btn.copied {
-            background: #28a745;
-        }
-
         .countdown {
             font-size: 4em;
             font-weight: bold;
@@ -300,6 +241,41 @@
         @keyframes countdownPulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.2); }
+        }
+
+        .recording-indicator {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+
+        .recording-indicator.show {
+            display: flex;
+        }
+
+        .recording-dot {
+            width: 12px;
+            height: 12px;
+            background: #dc3545;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .timer {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #495057;
+            font-family: monospace;
         }
 
         @media (max-width: 600px) {
@@ -327,10 +303,6 @@
     <div class="container">
         <h1>📚 Lesegeschwindigkeit Tracker</h1>
         
-        <div id="browserWarning" style="display: none;" class="browser-warning">
-            <strong>⚠️ Hinweis:</strong> Für beste Ergebnisse verwende bitte Chrome oder Edge auf deinem Handy.
-        </div>
-        
         <!-- Text Input Section -->
         <div class="section">
             <h2>1. Referenztext eingeben</h2>
@@ -340,39 +312,25 @@
         
         <!-- Recording Section -->
         <div class="section">
-            <h2>2. Mikrofon-Test (optional)</h2>
-            <div class="controls">
-                <button id="testMicBtn" class="btn-primary" style="min-width: 180px;">🎤 Mikrofon testen</button>
-            </div>
-            <div id="micTestStatus"></div>
-            <div id="micLevel" style="display: none; margin-top: 10px;">
-                <div style="background: #e9ecef; height: 30px; border-radius: 15px; overflow: hidden;">
-                    <div id="micLevelBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #28a745 0%, #ffc107 50%, #dc3545 100%); transition: width 0.1s;"></div>
-                </div>
-                <p style="text-align: center; margin-top: 5px; font-size: 0.9em; color: #6c757d;">Sprich etwas - der Balken sollte sich bewegen</p>
-            </div>
-        </div>
-        
-        <!-- Recording Section -->
-        <div class="section">
-            <h2>3. Aufnahme starten</h2>
+            <h2>2. Aufnahme starten</h2>
+            
+            <div id="countdown" class="countdown"></div>
+            
             <div class="controls">
                 <button id="startBtn" class="btn-primary">🎤 Aufnahme starten</button>
-                <button id="stopBtn" class="btn-danger" style="display: none;">⏹️ Stoppen</button>
+                <button id="stopBtn" class="btn-danger" style="display: none;">⏹️ Stoppen & Auswerten</button>
+            </div>
+            
+            <div class="recording-indicator" id="recordingIndicator">
+                <div class="recording-dot"></div>
+                <span>Aufnahme läuft</span>
+                <span class="timer" id="timer">00:00</span>
             </div>
             
             <div id="recordingStatus"></div>
             
-            <div id="countdown" class="countdown"></div>
-            
-            <h3 style="margin: 20px 0 10px 0; color: #495057; font-size: 1em;">Live-Erkennung:</h3>
+            <h3 style="margin: 20px 0 10px 0; color: #495057; font-size: 1em;">Erkannter Text:</h3>
             <div id="liveText" class="live-text empty">Warte auf Aufnahme...</div>
-            
-            <div class="debug-info" id="debugInfo">
-                <strong>🔍 Event Log:</strong>
-                <button class="copy-log-btn" id="copyLogBtn">📋 Kopieren</button>
-                <div id="debugLog"></div>
-            </div>
         </div>
         
         <!-- Results Section -->
@@ -410,18 +368,21 @@
 
     <script>
         // Global variables
-        let recognition;
+        let mediaRecorder = null;
+        let audioChunks = [];
         let referenceWords = [];
         let recognizedWords = [];
-        let finalTranscript = '';  // Only stores FINAL results
         let startTime;
-        let isRecording = false;
+        let timerInterval = null;
 
         // Elements
         const referenceTextArea = document.getElementById('referenceText');
         const wordCountEl = document.getElementById('wordCount');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
+        const countdown = document.getElementById('countdown');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const timer = document.getElementById('timer');
         const recordingStatus = document.getElementById('recordingStatus');
         const liveText = document.getElementById('liveText');
         const resultsSection = document.getElementById('resultsSection');
@@ -430,181 +391,6 @@
         const durationValue = document.getElementById('durationValue');
         const tipsList = document.getElementById('tipsList');
         const newTestBtn = document.getElementById('newTestBtn');
-        const browserWarning = document.getElementById('browserWarning');
-        const debugInfo = document.getElementById('debugInfo');
-        const debugLog = document.getElementById('debugLog');
-        const copyLogBtn = document.getElementById('copyLogBtn');
-        const countdown = document.getElementById('countdown');
-        const testMicBtn = document.getElementById('testMicBtn');
-        const micTestStatus = document.getElementById('micTestStatus');
-        const micLevel = document.getElementById('micLevel');
-        const micLevelBar = document.getElementById('micLevelBar');
-
-        let audioContext = null;
-        let micStream = null;
-        let micAnalyser = null;
-        let micTestInterval = null;
-
-        // Event logging function
-        function addLog(message, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
-            debugLog.appendChild(entry);
-            debugLog.scrollTop = debugLog.scrollHeight;
-            console.log(`[${timestamp}] ${message}`);
-        }
-
-        // Copy log button
-        copyLogBtn.addEventListener('click', async () => {
-            const logText = Array.from(debugLog.children)
-                .map(entry => entry.textContent)
-                .join('\n');
-            
-            try {
-                await navigator.clipboard.writeText(logText);
-                copyLogBtn.textContent = '✅ Kopiert!';
-                copyLogBtn.classList.add('copied');
-                setTimeout(() => {
-                    copyLogBtn.textContent = '📋 Kopieren';
-                    copyLogBtn.classList.remove('copied');
-                }, 2000);
-            } catch (err) {
-                console.error('Failed to copy:', err);
-                copyLogBtn.textContent = '❌ Fehler';
-                setTimeout(() => {
-                    copyLogBtn.textContent = '📋 Kopieren';
-                }, 2000);
-            }
-        });
-
-        // Check browser compatibility
-        function checkBrowserCompatibility() {
-            const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
-            const isEdge = /Edg/.test(navigator.userAgent);
-            
-            if (!isChrome && !isEdge) {
-                browserWarning.style.display = 'block';
-            }
-
-            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                showStatus('❌ Spracherkennung wird von diesem Browser nicht unterstützt. Bitte verwende Chrome oder Edge.', 'error', recordingStatus);
-                startBtn.disabled = true;
-                return false;
-            }
-            return true;
-        }
-
-        // Initialize Speech Recognition
-        function initSpeechRecognition() {
-            if (!checkBrowserCompatibility()) return;
-
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.lang = 'de-DE';
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.maxAlternatives = 1;
-
-            recognition.onstart = () => {
-                addLog('✅ Recognition STARTED');
-                console.log('Speech recognition started');
-                showStatus('🎤 Aufnahme läuft... Jetzt vorlesen!', 'success', recordingStatus);
-            };
-
-            recognition.onresult = (event) => {
-                addLog(`📝 onresult triggered - resultIndex: ${event.resultIndex}, total: ${event.results.length}`);
-                
-                // Chrome Mobile returns CUMULATIVE results - each new result contains all previous text
-                // So we only need to take the LAST final result, not accumulate them
-                let latestFinal = '';
-                let interim = '';
-                
-                // Find the LAST final result (most complete)
-                for (let i = event.results.length - 1; i >= 0; i--) {
-                    if (event.results[i].isFinal) {
-                        latestFinal = event.results[i][0].transcript;
-                        addLog(`  ✓ Taking LAST FINAL[${i}]: "${latestFinal.substring(0, 50)}..."`);
-                        break;
-                    }
-                }
-                
-                // If no final result, get the last interim
-                if (!latestFinal && event.results.length > 0) {
-                    interim = event.results[event.results.length - 1][0].transcript;
-                    addLog(`  ⏳ INTERIM: "${interim.substring(0, 30)}..."`);
-                }
-                
-                // Store the latest complete final transcript
-                if (latestFinal) {
-                    finalTranscript = latestFinal + ' ';
-                }
-
-                // Display: final + interim
-                const displayText = finalTranscript + interim;
-                liveText.textContent = displayText || 'Spreche jetzt...';
-                liveText.classList.remove('empty');
-                
-                // Update word count - ONLY from final transcript
-                const normalizedFinal = normalizeText(finalTranscript);
-                recognizedWords = normalizedFinal.split(/\s+/).filter(w => w.length > 0);
-                
-                addLog(`  → Total words: ${recognizedWords.length}`);
-            };
-
-            recognition.onerror = (event) => {
-                addLog(`❌ ERROR: ${event.error}`);
-                console.error('Speech recognition error:', event.error);
-                let errorMessage = 'Fehler bei der Spracherkennung: ';
-                
-                switch(event.error) {
-                    case 'not-allowed':
-                    case 'permission-denied':
-                        errorMessage += 'Mikrofon-Zugriff verweigert. Bitte erlaube den Zugriff in den Browser-Einstellungen.';
-                        break;
-                    case 'no-speech':
-                        errorMessage += 'Keine Sprache erkannt. Bitte näher am Mikrofon sprechen.';
-                        break;
-                    case 'network':
-                        errorMessage += 'Netzwerkfehler. Bitte Internetverbindung prüfen.';
-                        break;
-                    default:
-                        errorMessage += event.error;
-                }
-                
-                showStatus(errorMessage, 'error', recordingStatus);
-                
-                if (isRecording && event.error !== 'no-speech') {
-                    stopRecording();
-                }
-            };
-
-            recognition.onend = () => {
-                addLog(`⏹️ Recognition ENDED (isRecording: ${isRecording})`);
-                console.log('Speech recognition ended, isRecording:', isRecording);
-                if (isRecording) {
-                    // Restart if still recording (for continuous recognition)
-                    try {
-                        addLog('🔄 Restarting recognition...');
-                        console.log('Restarting recognition...');
-                        recognition.start();
-                    } catch (e) {
-                        addLog(`❌ Could not restart: ${e.message}`);
-                        console.error('Could not restart recognition:', e);
-                    }
-                }
-            };
-        }
-
-        // Normalize text for comparison (remove punctuation, lowercase)
-        function normalizeText(text) {
-            return text
-                .toLowerCase()
-                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, '') // Remove punctuation
-                .replace(/\s+/g, ' ') // Normalize whitespace
-                .trim();
-        }
 
         // Word count update
         referenceTextArea.addEventListener('input', () => {
@@ -618,75 +404,6 @@
         stopBtn.addEventListener('click', stopRecording);
         newTestBtn.addEventListener('click', resetTest);
 
-        // Microphone test
-        testMicBtn.addEventListener('click', toggleMicTest);
-
-        async function toggleMicTest() {
-            if (micTestInterval) {
-                // Stop test
-                stopMicTest();
-            } else {
-                // Start test
-                try {
-                    showStatus('🎤 Fordere Mikrofon-Zugriff an...', 'info', micTestStatus);
-                    
-                    micStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: {
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true
-                        } 
-                    });
-                    
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const source = audioContext.createMediaStreamSource(micStream);
-                    micAnalyser = audioContext.createAnalyser();
-                    micAnalyser.fftSize = 256;
-                    source.connect(micAnalyser);
-                    
-                    const bufferLength = micAnalyser.frequencyBinCount;
-                    const dataArray = new Uint8Array(bufferLength);
-                    
-                    micLevel.style.display = 'block';
-                    testMicBtn.textContent = '⏹️ Test stoppen';
-                    testMicBtn.classList.remove('btn-primary');
-                    testMicBtn.classList.add('btn-danger');
-                    showStatus('✅ Mikrofon aktiv! Sprich etwas...', 'success', micTestStatus);
-                    
-                    micTestInterval = setInterval(() => {
-                        micAnalyser.getByteFrequencyData(dataArray);
-                        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-                        const percentage = Math.min(100, (average / 128) * 100);
-                        micLevelBar.style.width = percentage + '%';
-                    }, 100);
-                    
-                } catch (error) {
-                    console.error('Microphone test error:', error);
-                    showStatus('❌ Mikrofon-Zugriff fehlgeschlagen: ' + error.message, 'error', micTestStatus);
-                }
-            }
-        }
-
-        function stopMicTest() {
-            if (micTestInterval) {
-                clearInterval(micTestInterval);
-                micTestInterval = null;
-            }
-            if (micStream) {
-                micStream.getTracks().forEach(track => track.stop());
-                micStream = null;
-            }
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
-            }
-            micLevel.style.display = 'none';
-            testMicBtn.textContent = '🎤 Mikrofon testen';
-            testMicBtn.classList.remove('btn-danger');
-            testMicBtn.classList.add('btn-primary');
-            micTestStatus.innerHTML = '';
-        }
-
         async function startRecording() {
             const text = referenceTextArea.value.trim();
             if (!text) {
@@ -694,90 +411,156 @@
                 return;
             }
 
-            // Stop mic test if running
-            stopMicTest();
-
-            // Clear previous log
-            debugLog.innerHTML = '';
-            addLog('🎬 Starting new recording session');
-
             // Normalize reference text
             referenceWords = normalizeText(text).split(/\s+/).filter(w => w.length > 0);
+            audioChunks = [];
             recognizedWords = [];
-            finalTranscript = '';  // Reset final transcript
 
-            addLog(`📄 Reference text: ${referenceWords.length} words`);
-
-            liveText.textContent = 'Warte auf Sprache...';
+            liveText.textContent = 'Bereite Aufnahme vor...';
             liveText.classList.add('empty');
             resultsSection.classList.remove('show');
 
             startBtn.style.display = 'none';
             startBtn.disabled = true;
 
-            // Show countdown
-            countdown.classList.add('show');
-            for (let i = 3; i > 0; i--) {
-                countdown.textContent = i;
-                addLog(`⏱️ Countdown: ${i}`);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-            countdown.textContent = 'LOS!';
-            addLog('🎤 GO! Start speaking now!');
-            await new Promise(resolve => setTimeout(resolve, 500));
-            countdown.classList.remove('show');
-
-            // Now actually start recording
-            startTime = Date.now();
-            isRecording = true;
-
-            stopBtn.style.display = 'inline-block';
-            stopBtn.classList.add('recording');
-
-            console.log('Starting recording, reference words:', referenceWords.length);
-
             try {
-                addLog('🎤 Calling recognition.start()...');
-                recognition.start();
-            } catch (e) {
-                addLog(`❌ Failed to start: ${e.message}`);
-                console.error('Could not start recognition:', e);
-                showStatus('❌ Fehler beim Starten der Aufnahme: ' + e.message, 'error', recordingStatus);
-                stopRecording();
-            }
-        }
+                // Request microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 16000 // Whisper works well with 16kHz
+                    } 
+                });
 
-        function stopRecording() {
-            addLog(`🛑 STOP button clicked - Final words: ${recognizedWords.length}`);
-            console.log('Stopping recording, final word count:', recognizedWords.length);
-            isRecording = false;
-            
-            try {
-                recognition.stop();
-            } catch (e) {
-                console.log('Recognition already stopped');
-            }
+                // Show countdown
+                countdown.classList.add('show');
+                for (let i = 3; i > 0; i--) {
+                    countdown.textContent = i;
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                countdown.textContent = 'LOS!';
+                await new Promise(resolve => setTimeout(resolve, 500));
+                countdown.classList.remove('show');
 
-            stopBtn.style.display = 'none';
-            startBtn.style.display = 'inline-block';
-            startBtn.disabled = false;
-            stopBtn.classList.remove('recording');
+                // Start recording
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
 
-            recordingStatus.innerHTML = '';
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
 
-            if (recognizedWords.length > 0) {
-                addLog(`✅ Processing results...`);
-                calculateResults();
-            } else {
-                addLog(`⚠️ No words recognized`);
-                showStatus('⚠️ Keine Sprache erkannt. Bitte versuche es erneut und sprich deutlicher.', 'warning', recordingStatus);
+                mediaRecorder.onstop = async () => {
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Process the recording
+                    await processRecording();
+                };
+
+                mediaRecorder.start();
+                startTime = Date.now();
+                
+                // Show recording indicator
+                recordingIndicator.classList.add('show');
+                stopBtn.style.display = 'inline-block';
+                stopBtn.classList.add('recording');
+                liveText.textContent = 'Aufnahme läuft - lies jetzt vor!';
+                liveText.classList.remove('empty');
+                showStatus('🎤 Aufnahme läuft! Lies den Text vor.', 'success', recordingStatus);
+
+                // Start timer
+                timerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }, 1000);
+
+            } catch (error) {
+                console.error('Failed to start recording:', error);
+                showStatus('❌ Mikrofon-Zugriff fehlgeschlagen: ' + error.message, 'error', recordingStatus);
+                startBtn.style.display = 'inline-block';
                 startBtn.disabled = false;
             }
         }
 
-        function calculateResults() {
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                
+                // Stop timer
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                
+                recordingIndicator.classList.remove('show');
+                stopBtn.style.display = 'none';
+                stopBtn.classList.remove('recording');
+                
+                showStatus('⏳ Verarbeite Aufnahme...', 'info', recordingStatus);
+                liveText.textContent = 'Transkribiere Audio...';
+            }
+        }
+
+        async function processRecording() {
             const endTime = Date.now();
             const durationSeconds = (endTime - startTime) / 1000;
+
+            try {
+                // Create audio blob
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                console.log('Audio blob created, size:', audioBlob.size);
+
+                // Send to Whisper API via our serverless function
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+
+                showStatus('🔄 Sende Audio zur Transkription...', 'info', recordingStatus);
+
+                const response = await fetch('/api/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Transkription fehlgeschlagen');
+                }
+
+                const result = await response.json();
+                const transcribedText = result.text.trim();
+
+                console.log('Transcription result:', transcribedText);
+
+                // Display transcribed text
+                liveText.textContent = transcribedText || 'Kein Text erkannt';
+                liveText.classList.remove('empty');
+
+                // Normalize and compare
+                recognizedWords = normalizeText(transcribedText).split(/\s+/).filter(w => w.length > 0);
+
+                showStatus('✅ Transkription abgeschlossen!', 'success', recordingStatus);
+
+                // Calculate and display results
+                calculateResults(durationSeconds);
+
+            } catch (error) {
+                console.error('Processing error:', error);
+                showStatus('❌ Fehler bei der Verarbeitung: ' + error.message, 'error', recordingStatus);
+                startBtn.style.display = 'inline-block';
+                startBtn.disabled = false;
+                liveText.textContent = 'Fehler bei der Transkription';
+            }
+        }
+
+        function calculateResults(durationSeconds) {
             const durationMinutes = durationSeconds / 60;
 
             console.log('Calculating results:');
@@ -817,6 +600,10 @@
 
             resultsSection.classList.add('show');
             resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            // Re-enable start button
+            startBtn.style.display = 'inline-block';
+            startBtn.disabled = false;
         }
 
         function generateTips(wpm, accuracy, duration) {
@@ -857,35 +644,28 @@
 
         function resetTest() {
             recognizedWords = [];
-            finalTranscript = '';
+            audioChunks = [];
             liveText.textContent = 'Warte auf Aufnahme...';
             liveText.classList.add('empty');
             resultsSection.classList.remove('show');
             recordingStatus.innerHTML = '';
-            debugLog.innerHTML = '';
+            timer.textContent = '00:00';
             startBtn.disabled = false;
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Normalize text for comparison (remove punctuation, lowercase)
+        function normalizeText(text) {
+            return text
+                .toLowerCase()
+                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, '') // Remove punctuation
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .trim();
         }
 
         function showStatus(message, type, element) {
             element.innerHTML = `<div class="status ${type}">${message}</div>`;
         }
-
-        // Initialize on load
-        window.addEventListener('load', () => {
-            initSpeechRecognition();
-        });
-
-        // Request permissions on first interaction
-        document.addEventListener('click', async function requestPermissions() {
-            try {
-                await navigator.mediaDevices.getUserMedia({ audio: true });
-                console.log('Microphone permission granted');
-            } catch (e) {
-                console.log('Microphone permission:', e);
-            }
-            document.removeEventListener('click', requestPermissions);
-        }, { once: true });
     </script>
 </body>
 </html>
