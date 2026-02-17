@@ -54,8 +54,8 @@ export default async function handler(req, res) {
     });
     formData.append('model', 'whisper-1');
     formData.append('language', 'de'); // German language
-    // Hint to Whisper to preserve reading errors - don't autocorrect
-    formData.append('prompt', 'Ein Kind liest einen Text vor. Transkribiere exakt was gesagt wird, auch wenn es Lesefehler, Versprecher oder falsche Wörter gibt. Korrigiere nichts.');
+    // Hint to Whisper to preserve reading errors and avoid hallucinations
+    formData.append('prompt', 'Ein Kind liest einen deutschen Text vor. Transkribiere nur das Gesprochene, exakt wie es gesagt wird. Keine Korrekturen, keine Ergänzungen.');
 
     // Call Whisper API
     console.log('Calling Whisper API...');
@@ -78,7 +78,30 @@ export default async function handler(req, res) {
     }
 
     const result = await whisperResponse.json();
-    console.log('Transcription successful:', result.text.substring(0, 50) + '...');
+    
+    // Filter known Whisper hallucinations
+    const hallucinations = [
+      'untertitel der amara.org-community',
+      'untertitel von',
+      'amara.org',
+      'vielen dank für ihre aufmerksamkeit',
+      'thank you for watching',
+      'untertitel',
+    ];
+    
+    let transcribedText = result.text.trim();
+    
+    // Remove hallucinated phrases from end of text
+    for (const phrase of hallucinations) {
+      const lowerText = transcribedText.toLowerCase();
+      const idx = lowerText.lastIndexOf(phrase);
+      if (idx !== -1) {
+        console.log(`Removing hallucination: "${phrase}" at position ${idx}`);
+        transcribedText = transcribedText.substring(0, idx).trim();
+      }
+    }
+    
+    console.log('Transcription successful:', transcribedText.substring(0, 80) + '...');
 
     // Clean up temp file
     try {
@@ -89,7 +112,7 @@ export default async function handler(req, res) {
 
     // Return the transcription
     return res.status(200).json({
-      text: result.text,
+      text: transcribedText,
       duration: result.duration,
     });
 
