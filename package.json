@@ -1,0 +1,11 @@
+{
+  "name": "reading-tracker",
+  "version": "1.0.0",
+  "description": "Reading speed tracker with Whisper API",
+  "private": true,
+  "dependencies": {
+    "formidable": "^3.5.1",
+    "node-fetch": "^2.7.0",
+    "form-data": "^4.0.0"
+  }
+}
