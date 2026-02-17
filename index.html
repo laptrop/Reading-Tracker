@@ -962,24 +962,31 @@ function normalizeText(text) {
 
 function calculateAccuracy(reference, recognized) {
     if (reference.length === 0) return 0;
-    let refIdx = 0, recIdx = 0, matched = 0;
-    while (refIdx < reference.length && recIdx < recognized.length) {
-        if (reference[refIdx] === recognized[recIdx]) {
-            matched++; refIdx++; recIdx++;
-        } else {
-            let found = false;
-            for (let la = 1; la <= 3; la++) {
-                if (recIdx + la < recognized.length && reference[refIdx] === recognized[recIdx + la]) {
-                    recIdx += la; found = true; break;
-                }
-                if (refIdx + la < reference.length && reference[refIdx + la] === recognized[recIdx]) {
-                    refIdx += la; found = true; break;
-                }
+
+    // Longest Common Subsequence - finds all correctly read words
+    // regardless of position shifts, insertions or deletions
+    const m = reference.length;
+    const n = recognized.length;
+
+    // For long texts, limit to avoid performance issues
+    const refSlice = reference.slice(0, Math.min(m, 300));
+    const recSlice = recognized.slice(0, Math.min(n, 300));
+
+    const dp = Array.from({ length: refSlice.length + 1 },
+        () => new Array(recSlice.length + 1).fill(0));
+
+    for (let i = 1; i <= refSlice.length; i++) {
+        for (let j = 1; j <= recSlice.length; j++) {
+            if (refSlice[i - 1] === recSlice[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
             }
-            if (!found) { refIdx++; recIdx++; }
         }
     }
-    return Math.round((matched / reference.length) * 100);
+
+    const lcs = dp[refSlice.length][recSlice.length];
+    return Math.round((lcs / reference.length) * 100);
 }
 
 function showStatus(msg, type, elementId) {
