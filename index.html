@@ -525,6 +525,9 @@
         <button class="btn btn-primary" onclick="nextPage()" style="margin-top:8px">
             📖 Nächste Seite →
         </button>
+        <button class="btn btn-outline" onclick="retryPage()">
+            🔄 Nochmal lesen
+        </button>
         <button class="btn btn-outline" onclick="endSession()">
             🏁 Session beenden
         </button>
@@ -797,16 +800,23 @@ function backToPhoto() {
 let wakeLock = null;
 
 async function requestWakeLock() {
+    // Keep screen on
     if ('wakeLock' in navigator) {
         try {
             wakeLock = await navigator.wakeLock.request('screen');
-            console.log('Wake Lock aktiviert - Bildschirm bleibt an');
+            console.log('Wake Lock aktiviert');
         } catch (err) {
             console.warn('Wake Lock fehlgeschlagen:', err);
-            // Not critical - recording still works, just screen may lock
         }
-    } else {
-        console.warn('Wake Lock API nicht verfügbar in diesem Browser');
+    }
+    // Lock screen orientation to portrait
+    if (screen.orientation && screen.orientation.lock) {
+        try {
+            await screen.orientation.lock('portrait');
+            console.log('Orientation auf Portrait gesperrt');
+        } catch (err) {
+            console.warn('Orientation Lock fehlgeschlagen:', err);
+        }
     }
 }
 
@@ -818,6 +828,14 @@ async function releaseWakeLock() {
             console.log('Wake Lock freigegeben');
         } catch (err) {
             console.warn('Wake Lock release fehlgeschlagen:', err);
+        }
+    }
+    // Unlock orientation
+    if (screen.orientation && screen.orientation.unlock) {
+        try {
+            screen.orientation.unlock();
+        } catch (err) {
+            console.warn('Orientation unlock fehlgeschlagen:', err);
         }
     }
 }
@@ -873,9 +891,18 @@ async function startRecording() {
         startRecTimer();
 
         document.getElementById('startRecBtn').style.display = 'none';
-        document.getElementById('stopRecBtn').style.display = 'block';
+        const stopBtn = document.getElementById('stopRecBtn');
+        stopBtn.style.display = 'block';
+        stopBtn.disabled = true;
+        stopBtn.textContent = '⏳ Bitte warten...';
         document.getElementById('recIndicator').classList.add('show');
         showStatus('🎤 Aufnahme läuft – jetzt vorlesen!', 'success', 'recordStatus');
+
+        // Enable stop button after 3 seconds minimum
+        setTimeout(() => {
+            stopBtn.disabled = false;
+            stopBtn.textContent = '⏹️ Fertig';
+        }, 3000);
 
     } catch (err) {
         releaseWakeLock();
@@ -887,12 +914,38 @@ function stopRecording() {
     if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
         state.mediaRecorder.stop();
         stopRecTimer();
-        releaseWakeLock(); // Allow screen to sleep again
+        releaseWakeLock();
 
-        document.getElementById('stopRecBtn').style.display = 'none';
+        const stopBtn = document.getElementById('stopRecBtn');
+        stopBtn.style.display = 'none';
+        stopBtn.disabled = false;
+        stopBtn.textContent = '⏹️ Fertig';
         document.getElementById('recIndicator').classList.remove('show');
         showStatus('⏳ Wird ausgewertet...', 'info', 'recordStatus');
     }
+}
+
+// ══════════════════════════════════
+// RETRY PAGE
+// ══════════════════════════════════
+function retryPage() {
+    // Remove last page result (we're redoing it)
+    if (state.pages.length > 0 && state.pages[state.pages.length - 1].page === state.currentPage) {
+        state.pages.pop();
+    }
+    // Go back to recording step (keep the text/photo)
+    showScreen('screenPage');
+    document.getElementById('stepPhoto').style.display = 'none';
+    document.getElementById('stepRecord').style.display = 'block';
+    document.getElementById('startRecBtn').style.display = 'block';
+    const stopBtn = document.getElementById('stopRecBtn');
+    stopBtn.style.display = 'none';
+    stopBtn.disabled = false;
+    stopBtn.textContent = '⏹️ Fertig';
+    document.getElementById('recIndicator').classList.remove('show');
+    document.getElementById('recTimer').textContent = '00:00';
+    document.getElementById('recordStatus').innerHTML = '';
+    state.audioChunks = [];
 }
 
 async function processRecording() {
