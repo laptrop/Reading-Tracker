@@ -679,32 +679,13 @@
         function calculateResults(durationSeconds) {
             const durationMinutes = durationSeconds / 60;
 
-            console.log('Calculating results:');
-            console.log('- Duration:', durationSeconds, 'seconds');
-            console.log('- Words read:', recognizedWords.length);
-            console.log('- Reference words:', referenceWords.length);
-
             // Calculate WPM
             const wordsRead = recognizedWords.length;
             const wpm = Math.round(wordsRead / durationMinutes);
 
-            // Calculate accuracy
-            let correctWords = 0;
-            const minLength = Math.min(referenceWords.length, recognizedWords.length);
-            
-            for (let i = 0; i < minLength; i++) {
-                if (recognizedWords[i] === referenceWords[i]) {
-                    correctWords++;
-                }
-            }
-
-            const accuracy = referenceWords.length > 0 
-                ? Math.round((correctWords / referenceWords.length) * 100) 
-                : 0;
-
-            console.log('- Correct words:', correctWords);
-            console.log('- Accuracy:', accuracy + '%');
-            console.log('- WPM:', wpm);
+            // Calculate accuracy using best-match alignment
+            // This handles missing/extra words much better than positional matching
+            const accuracy = calculateAccuracy(referenceWords, recognizedWords);
 
             // Display results
             wpmValue.textContent = wpm;
@@ -720,6 +701,51 @@
             // Re-enable start button
             startBtn.style.display = 'inline-block';
             startBtn.disabled = false;
+        }
+
+        // Calculates how many reference words appear in the spoken text,
+        // in order, regardless of position shifts caused by missing/extra words
+        function calculateAccuracy(reference, recognized) {
+            if (reference.length === 0) return 0;
+
+            // Count how many reference words were spoken (in order)
+            // Uses a greedy sequence matching approach
+            let refIndex = 0;
+            let recIndex = 0;
+            let matched = 0;
+
+            while (refIndex < reference.length && recIndex < recognized.length) {
+                if (reference[refIndex] === recognized[recIndex]) {
+                    matched++;
+                    refIndex++;
+                    recIndex++;
+                } else {
+                    // Look ahead in recognized words to find the reference word
+                    // This handles extra/inserted words
+                    let found = false;
+                    for (let lookahead = 1; lookahead <= 3; lookahead++) {
+                        if (recIndex + lookahead < recognized.length &&
+                            reference[refIndex] === recognized[recIndex + lookahead]) {
+                            recIndex += lookahead;
+                            found = true;
+                            break;
+                        }
+                        // Also check if reference word was skipped
+                        if (refIndex + lookahead < reference.length &&
+                            reference[refIndex + lookahead] === recognized[recIndex]) {
+                            refIndex += lookahead;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        refIndex++;
+                        recIndex++;
+                    }
+                }
+            }
+
+            return Math.round((matched / reference.length) * 100);
         }
 
         function generateTips(wpm, accuracy, duration) {
