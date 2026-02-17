@@ -235,12 +235,28 @@
 
         .debug-info {
             background: #e9ecef;
-            padding: 10px;
+            padding: 15px;
             border-radius: 8px;
             margin-top: 10px;
             font-size: 0.85em;
-            color: #6c757d;
+            color: #495057;
             font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .debug-info .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .debug-info .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .debug-info .timestamp {
+            color: #6c757d;
+            font-size: 0.9em;
         }
 
         @media (max-width: 600px) {
@@ -292,8 +308,9 @@
             <h3 style="margin: 20px 0 10px 0; color: #495057; font-size: 1em;">Live-Erkennung:</h3>
             <div id="liveText" class="live-text empty">Warte auf Aufnahme...</div>
             
-            <div class="debug-info" id="debugInfo" style="display: none;">
-                <strong>Debug:</strong> <span id="debugText"></span>
+            <div class="debug-info" id="debugInfo">
+                <strong>🔍 Event Log:</strong>
+                <div id="debugLog"></div>
             </div>
         </div>
         
@@ -354,7 +371,18 @@
         const newTestBtn = document.getElementById('newTestBtn');
         const browserWarning = document.getElementById('browserWarning');
         const debugInfo = document.getElementById('debugInfo');
-        const debugText = document.getElementById('debugText');
+        const debugLog = document.getElementById('debugLog');
+
+        // Event logging function
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            debugLog.appendChild(entry);
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
 
         // Check browser compatibility
         function checkBrowserCompatibility() {
@@ -385,18 +413,13 @@
             recognition.maxAlternatives = 1;
 
             recognition.onstart = () => {
+                addLog('✅ Recognition STARTED');
                 console.log('Speech recognition started');
                 showStatus('🎤 Aufnahme läuft... Jetzt vorlesen!', 'success', recordingStatus);
             };
 
             recognition.onresult = (event) => {
-                const timestamp = new Date().toLocaleTimeString();
-                console.log(`[${timestamp}] onresult - resultIndex:`, event.resultIndex, 'total:', event.results.length);
-                
-                // Log all results for debugging
-                for (let i = 0; i < event.results.length; i++) {
-                    console.log(`  Result[${i}] isFinal:${event.results[i].isFinal} text:"${event.results[i][0].transcript}"`);
-                }
+                addLog(`📝 onresult triggered - resultIndex: ${event.resultIndex}, total: ${event.results.length}`);
                 
                 // Get only the NEW results starting from resultIndex
                 let newFinal = '';
@@ -406,10 +429,10 @@
                     const transcript = event.results[i][0].transcript;
                     
                     if (event.results[i].isFinal) {
-                        console.log('  → Adding NEW FINAL:', transcript);
+                        addLog(`  ✓ FINAL[${i}]: "${transcript.substring(0, 30)}..."`);
                         newFinal += transcript + ' ';
                     } else {
-                        console.log('  → INTERIM (display only):', transcript);
+                        addLog(`  ⏳ INTERIM[${i}]: "${transcript.substring(0, 30)}..."`);
                         interim = transcript;
                     }
                 }
@@ -417,7 +440,7 @@
                 // Add ONLY the new final text to our running transcript
                 if (newFinal) {
                     finalTranscript += newFinal;
-                    console.log('  → Updated finalTranscript to:', finalTranscript);
+                    addLog(`  → Total final words now: ${normalizeText(finalTranscript).split(/\s+/).filter(w => w.length > 0).length}`);
                 }
 
                 // Display: all final text + current interim
@@ -428,15 +451,10 @@
                 // Update word count - ONLY from final transcript
                 const normalizedFinal = normalizeText(finalTranscript);
                 recognizedWords = normalizedFinal.split(/\s+/).filter(w => w.length > 0);
-                
-                console.log('  → Recognized words count:', recognizedWords.length);
-                
-                // Debug info
-                debugInfo.style.display = 'block';
-                debugText.textContent = `Finale Wörter: ${recognizedWords.length} | Text: "${finalTranscript.substring(0, 80)}..." | Interim: "${interim.substring(0, 30)}"`;
             };
 
             recognition.onerror = (event) => {
+                addLog(`❌ ERROR: ${event.error}`);
                 console.error('Speech recognition error:', event.error);
                 let errorMessage = 'Fehler bei der Spracherkennung: ';
                 
@@ -463,13 +481,16 @@
             };
 
             recognition.onend = () => {
+                addLog(`⏹️ Recognition ENDED (isRecording: ${isRecording})`);
                 console.log('Speech recognition ended, isRecording:', isRecording);
                 if (isRecording) {
                     // Restart if still recording (for continuous recognition)
                     try {
+                        addLog('🔄 Restarting recognition...');
                         console.log('Restarting recognition...');
                         recognition.start();
                     } catch (e) {
+                        addLog(`❌ Could not restart: ${e.message}`);
                         console.error('Could not restart recognition:', e);
                     }
                 }
@@ -504,6 +525,10 @@
                 return;
             }
 
+            // Clear previous log
+            debugLog.innerHTML = '';
+            addLog('🎬 Starting new recording session');
+
             // Normalize reference text
             referenceWords = normalizeText(text).split(/\s+/).filter(w => w.length > 0);
             recognizedWords = [];
@@ -511,10 +536,11 @@
             startTime = Date.now();
             isRecording = true;
 
+            addLog(`📄 Reference text: ${referenceWords.length} words`);
+
             liveText.textContent = 'Warte auf Sprache...';
             liveText.classList.add('empty');
             resultsSection.classList.remove('show');
-            debugInfo.style.display = 'none';
 
             startBtn.style.display = 'none';
             startBtn.disabled = true;
@@ -524,8 +550,10 @@
             console.log('Starting recording, reference words:', referenceWords.length);
 
             try {
+                addLog('🎤 Calling recognition.start()...');
                 recognition.start();
             } catch (e) {
+                addLog(`❌ Failed to start: ${e.message}`);
                 console.error('Could not start recognition:', e);
                 showStatus('❌ Fehler beim Starten der Aufnahme: ' + e.message, 'error', recordingStatus);
                 stopRecording();
@@ -533,6 +561,7 @@
         }
 
         function stopRecording() {
+            addLog(`🛑 STOP button clicked - Final words: ${recognizedWords.length}`);
             console.log('Stopping recording, final word count:', recognizedWords.length);
             isRecording = false;
             
@@ -550,8 +579,10 @@
             recordingStatus.innerHTML = '';
 
             if (recognizedWords.length > 0) {
+                addLog(`✅ Processing results...`);
                 calculateResults();
             } else {
+                addLog(`⚠️ No words recognized`);
                 showStatus('⚠️ Keine Sprache erkannt. Bitte versuche es erneut und sprich deutlicher.', 'warning', recordingStatus);
                 startBtn.disabled = false;
             }
@@ -644,7 +675,7 @@
             liveText.classList.add('empty');
             resultsSection.classList.remove('show');
             recordingStatus.innerHTML = '';
-            debugInfo.style.display = 'none';
+            debugLog.innerHTML = '';
             startBtn.disabled = false;
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
