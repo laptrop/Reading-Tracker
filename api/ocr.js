@@ -51,48 +51,83 @@ export default async function handler(req, res) {
 
     // Call OpenAI Vision API
     console.log('Calling OpenAI Vision API for OCR...');
-    const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extrahiere den gesamten Text aus diesem Bild. Gib NUR den reinen Text zurück, ohne zusätzliche Erklärungen oder Formatierung. Wenn es ein Buch oder gedruckter Text ist, transkribiere ihn Wort für Wort genau so wie er im Bild steht.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Image}`,
-                  detail: 'high' // High detail for better OCR accuracy
+    
+    let visionResponse;
+    try {
+      visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o', // Using gpt-4o which supports vision
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Extrahiere den gesamten Text aus diesem Bild. Gib NUR den reinen Text zurück, ohne zusätzliche Erklärungen oder Formatierung. Wenn es ein Buch oder gedruckter Text ist, transkribiere ihn Wort für Wort genau so wie er im Bild steht.'
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${mimeType};base64,${base64Image}`,
+                    detail: 'high' // High detail for better OCR accuracy
+                  }
                 }
-              }
-            ]
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0 // Low temperature for more deterministic output
-      })
-    });
-
-    if (!visionResponse.ok) {
-      const errorText = await visionResponse.text();
-      console.error('OpenAI Vision API error:', visionResponse.status, errorText);
-      return res.status(visionResponse.status).json({ 
-        error: 'Vision API error',
-        details: errorText 
+              ]
+            }
+          ],
+          max_tokens: 2000,
+          temperature: 0 // Low temperature for more deterministic output
+        })
+      });
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      return res.status(500).json({ 
+        error: 'Network error calling OpenAI',
+        message: fetchError.message 
       });
     }
 
-    const result = await visionResponse.json();
-    const extractedText = result.choices[0]?.message?.content?.trim() || '';
+    // Read response text first for better error handling
+    const responseText = await visionResponse.text();
+    console.log('OpenAI response status:', visionResponse.status);
+    console.log('OpenAI response preview:', responseText.substring(0, 200));
+
+    if (!visionResponse.ok) {
+      console.error('OpenAI Vision API error:', visionResponse.status, responseText);
+      
+      // Try to parse as JSON for better error message
+      let errorMessage = responseText;
+      try {
+        const errorJson = JSON.parse(responseText);
+        errorMessage = errorJson.error?.message || errorJson.error || responseText;
+      } catch (e) {
+        // Not JSON, use raw text
+      }
+      
+      return res.status(visionResponse.status).json({ 
+        error: 'Vision API error',
+        details: errorMessage 
+      });
+    }
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      console.error('Response was:', responseText);
+      return res.status(500).json({ 
+        error: 'Invalid response from OpenAI',
+        details: 'Response was not valid JSON'
+      });
+    }
+
+    const extractedText = result.choices?.[0]?.message?.content?.trim() || '';
     
     console.log('OCR successful, extracted text length:', extractedText.length);
 
