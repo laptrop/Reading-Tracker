@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lesegeschwindigkeit Tracker</title>
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         * {
             margin: 0;
@@ -64,43 +63,6 @@
         textarea:focus {
             outline: none;
             border-color: #667eea;
-        }
-        
-        textarea.ocr-result {
-            border-color: #28a745;
-            background: #f0fff4;
-        }
-        
-        .upload-area {
-            border: 3px dashed #dee2e6;
-            border-radius: 10px;
-            padding: 25px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-top: 15px;
-            background: white;
-        }
-        
-        .upload-area:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-        
-        .upload-area.dragover {
-            border-color: #667eea;
-            background: #f0f0ff;
-            transform: scale(1.02);
-        }
-        
-        .upload-area.processing {
-            border-color: #667eea;
-            background: #f0f0ff;
-            pointer-events: none;
-        }
-        
-        input[type="file"] {
-            display: none;
         }
         
         button {
@@ -261,66 +223,6 @@
             text-align: center;
             margin: 20px 0;
         }
-        
-        .preview-image {
-            max-width: 100%;
-            max-height: 300px;
-            margin: 15px auto;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            display: block;
-        }
-
-        .progress-bar-container {
-            width: 100%;
-            height: 30px;
-            background: #e9ecef;
-            border-radius: 15px;
-            overflow: hidden;
-            margin: 15px 0;
-            display: none;
-        }
-
-        .progress-bar-container.show {
-            display: block;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            width: 0%;
-            transition: width 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 0.9em;
-        }
-
-        .photo-tips {
-            background: #e7f3ff;
-            border-left: 4px solid #2196F3;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 15px;
-            font-size: 0.9em;
-        }
-
-        .photo-tips h4 {
-            color: #1976D2;
-            margin-bottom: 10px;
-            font-size: 1em;
-        }
-
-        .photo-tips ul {
-            margin-left: 20px;
-            color: #555;
-        }
-
-        .photo-tips li {
-            margin: 5px 0;
-        }
 
         .browser-warning {
             background: #fff3cd;
@@ -329,6 +231,16 @@
             border-radius: 10px;
             margin-bottom: 20px;
             color: #856404;
+        }
+
+        .debug-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: #6c757d;
+            font-family: monospace;
         }
 
         @media (max-width: 600px) {
@@ -363,34 +275,8 @@
         <!-- Text Input Section -->
         <div class="section">
             <h2>1. Referenztext eingeben</h2>
-            <textarea id="referenceText" placeholder="Gib hier den Text ein, den dein Sohn lesen soll... oder lade ein Foto hoch"></textarea>
+            <textarea id="referenceText" placeholder="Gib hier den Text ein, den dein Sohn lesen soll..."></textarea>
             <div class="word-count" id="wordCount">0 Wörter</div>
-            
-            <div class="upload-area" id="uploadArea">
-                <p style="font-size: 2em; margin-bottom: 10px;">📷</p>
-                <p><strong>Foto hochladen</strong></p>
-                <p style="color: #6c757d; margin-top: 10px; font-size: 0.9em;">Tippen oder Bild hierher ziehen</p>
-                <input type="file" id="imageInput" accept="image/*">
-            </div>
-            
-            <div class="photo-tips">
-                <h4>📸 Tipps für beste OCR-Ergebnisse:</h4>
-                <ul>
-                    <li>✓ Gute Beleuchtung ohne Schatten</li>
-                    <li>✓ Text gerade und flach fotografieren</li>
-                    <li>✓ Ausreichend Kontrast (dunkler Text, heller Hintergrund)</li>
-                    <li>✓ Kein Blitz verwenden (verursacht Reflexionen)</li>
-                    <li>✓ Bild scharf und nicht verwackelt</li>
-                </ul>
-            </div>
-            
-            <div class="progress-bar-container" id="progressContainer">
-                <div class="progress-bar" id="progressBar">0%</div>
-            </div>
-            
-            <div id="ocrStatus"></div>
-            <canvas id="imageCanvas" style="display: none;"></canvas>
-            <img id="previewImage" class="preview-image" style="display: none;">
         </div>
         
         <!-- Recording Section -->
@@ -405,6 +291,10 @@
             
             <h3 style="margin: 20px 0 10px 0; color: #495057; font-size: 1em;">Live-Erkennung:</h3>
             <div id="liveText" class="live-text empty">Warte auf Aufnahme...</div>
+            
+            <div class="debug-info" id="debugInfo" style="display: none;">
+                <strong>Debug:</strong> <span id="debugText"></span>
+            </div>
         </div>
         
         <!-- Results Section -->
@@ -445,21 +335,13 @@
         let recognition;
         let referenceWords = [];
         let recognizedWords = [];
-        let recognizedText = '';
+        let finalTranscript = '';  // Only stores FINAL results
         let startTime;
         let isRecording = false;
-        let ocrWorker = null;
 
         // Elements
         const referenceTextArea = document.getElementById('referenceText');
         const wordCountEl = document.getElementById('wordCount');
-        const uploadArea = document.getElementById('uploadArea');
-        const imageInput = document.getElementById('imageInput');
-        const ocrStatus = document.getElementById('ocrStatus');
-        const previewImage = document.getElementById('previewImage');
-        const imageCanvas = document.getElementById('imageCanvas');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const recordingStatus = document.getElementById('recordingStatus');
@@ -471,27 +353,8 @@
         const tipsList = document.getElementById('tipsList');
         const newTestBtn = document.getElementById('newTestBtn');
         const browserWarning = document.getElementById('browserWarning');
-
-        // Initialize Tesseract Worker
-        async function initOCRWorker() {
-            try {
-                ocrWorker = await Tesseract.createWorker('deu', 1, {
-                    logger: m => updateProgress(m)
-                });
-                console.log('OCR Worker initialized');
-            } catch (error) {
-                console.error('Failed to initialize OCR worker:', error);
-            }
-        }
-
-        // Update progress bar
-        function updateProgress(m) {
-            if (m.status === 'recognizing text') {
-                const percent = Math.round(m.progress * 100);
-                progressBar.style.width = percent + '%';
-                progressBar.textContent = percent + '%';
-            }
-        }
+        const debugInfo = document.getElementById('debugInfo');
+        const debugText = document.getElementById('debugText');
 
         // Check browser compatibility
         function checkBrowserCompatibility() {
@@ -527,27 +390,36 @@
             };
 
             recognition.onresult = (event) => {
+                console.log('onresult triggered, resultIndex:', event.resultIndex, 'total results:', event.results.length);
+                
                 let interimTranscript = '';
                 
-                // Only process NEW results starting from resultIndex
+                // Process ONLY NEW results starting from resultIndex
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript;
+                    
                     if (event.results[i].isFinal) {
-                        // This is a NEW final result - add it once
-                        recognizedText += transcript + ' ';
+                        // This is a NEW final result - add it to our permanent transcript
+                        console.log('FINAL result:', transcript);
+                        finalTranscript += transcript + ' ';
                     } else {
-                        // This is interim - only for display
-                        interimTranscript += transcript;
+                        // This is interim - only for display, don't save
+                        console.log('INTERIM result:', transcript);
+                        interimTranscript = transcript;
                     }
                 }
 
-                // Display complete text + current interim
-                const displayText = recognizedText + interimTranscript;
+                // Display: final + current interim
+                const displayText = finalTranscript + interimTranscript;
                 liveText.textContent = displayText || 'Spreche jetzt...';
                 liveText.classList.remove('empty');
                 
-                // Update word count from final text only
-                recognizedWords = normalizeText(recognizedText).split(/\s+/).filter(w => w.length > 0);
+                // Update word count - ONLY from final transcript
+                recognizedWords = normalizeText(finalTranscript).split(/\s+/).filter(w => w.length > 0);
+                
+                // Debug info
+                debugInfo.style.display = 'block';
+                debugText.textContent = `Finale Wörter: ${recognizedWords.length} | Final: "${finalTranscript.substring(0, 50)}..."`;
             };
 
             recognition.onerror = (event) => {
@@ -577,13 +449,14 @@
             };
 
             recognition.onend = () => {
-                console.log('Speech recognition ended');
+                console.log('Speech recognition ended, isRecording:', isRecording);
                 if (isRecording) {
                     // Restart if still recording (for continuous recognition)
                     try {
+                        console.log('Restarting recognition...');
                         recognition.start();
                     } catch (e) {
-                        console.log('Could not restart recognition:', e);
+                        console.error('Could not restart recognition:', e);
                     }
                 }
             };
@@ -603,136 +476,7 @@
             const text = referenceTextArea.value.trim();
             const words = text ? text.split(/\s+/).length : 0;
             wordCountEl.textContent = `${words} Wörter`;
-            referenceTextArea.classList.remove('ocr-result');
         });
-
-        // Upload area interactions
-        uploadArea.addEventListener('click', () => imageInput.click());
-
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                handleImageUpload(file);
-            }
-        });
-
-        imageInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                handleImageUpload(file);
-            }
-        });
-
-        // Preprocess image for better OCR
-        function preprocessImage(imageElement) {
-            const canvas = imageCanvas;
-            const ctx = canvas.getContext('2d');
-            
-            // Set canvas size to image size
-            canvas.width = imageElement.width;
-            canvas.height = imageElement.height;
-            
-            // Draw original image
-            ctx.drawImage(imageElement, 0, 0);
-            
-            // Get image data
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            // Increase contrast and convert to grayscale
-            for (let i = 0; i < data.length; i += 4) {
-                // Convert to grayscale
-                const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                
-                // Increase contrast
-                const contrast = 1.5;
-                const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-                const adjusted = factor * (gray - 128) + 128;
-                
-                // Clamp values
-                const final = Math.max(0, Math.min(255, adjusted));
-                
-                data[i] = final;     // R
-                data[i + 1] = final; // G
-                data[i + 2] = final; // B
-            }
-            
-            // Put processed image back
-            ctx.putImageData(imageData, 0, 0);
-            
-            return canvas.toDataURL('image/png');
-        }
-
-        // OCR Processing with optimized Tesseract
-        async function handleImageUpload(file) {
-            uploadArea.classList.add('processing');
-            showStatus('📷 Bild wird vorbereitet...', 'info', ocrStatus);
-            progressContainer.classList.add('show');
-            progressBar.style.width = '0%';
-            progressBar.textContent = '0%';
-            
-            try {
-                // Show preview
-                const imageUrl = URL.createObjectURL(file);
-                previewImage.src = imageUrl;
-                previewImage.style.display = 'block';
-                
-                // Wait for image to load
-                await new Promise((resolve) => {
-                    previewImage.onload = resolve;
-                });
-                
-                // Preprocess image
-                showStatus('🔧 Bild wird optimiert für bessere Erkennung...', 'info', ocrStatus);
-                const processedImage = preprocessImage(previewImage);
-                
-                // Initialize worker if not already done
-                if (!ocrWorker) {
-                    showStatus('⚙️ OCR wird initialisiert...', 'info', ocrStatus);
-                    await initOCRWorker();
-                }
-                
-                // Perform OCR
-                showStatus('📝 Text wird erkannt...', 'info', ocrStatus);
-                const result = await ocrWorker.recognize(processedImage, {
-                    tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-                });
-
-                const extractedText = result.data.text.trim();
-
-                if (extractedText) {
-                    referenceTextArea.value = extractedText;
-                    referenceTextArea.classList.add('ocr-result');
-                    const words = extractedText.split(/\s+/).length;
-                    wordCountEl.textContent = `${words} Wörter`;
-                    showStatus('✅ Text erfolgreich erkannt! Du kannst den Text jetzt bei Bedarf korrigieren.', 'success', ocrStatus);
-                } else {
-                    showStatus('⚠️ Kein Text im Bild gefunden. Versuche ein Foto mit besserem Kontrast oder tippe den Text manuell ein.', 'warning', ocrStatus);
-                }
-
-                uploadArea.classList.remove('processing');
-                setTimeout(() => {
-                    progressContainer.classList.remove('show');
-                }, 2000);
-                
-            } catch (error) {
-                console.error('OCR Error:', error);
-                showStatus('❌ Fehler beim Verarbeiten: ' + error.message + '. Bitte tippe den Text manuell ein.', 'error', ocrStatus);
-                uploadArea.classList.remove('processing');
-                progressContainer.classList.remove('show');
-            }
-        }
 
         // Recording controls
         startBtn.addEventListener('click', startRecording);
@@ -749,18 +493,21 @@
             // Normalize reference text
             referenceWords = normalizeText(text).split(/\s+/).filter(w => w.length > 0);
             recognizedWords = [];
-            recognizedText = '';
+            finalTranscript = '';  // Reset final transcript
             startTime = Date.now();
             isRecording = true;
 
             liveText.textContent = 'Warte auf Sprache...';
             liveText.classList.add('empty');
             resultsSection.classList.remove('show');
+            debugInfo.style.display = 'none';
 
             startBtn.style.display = 'none';
             startBtn.disabled = true;
             stopBtn.style.display = 'inline-block';
             stopBtn.classList.add('recording');
+
+            console.log('Starting recording, reference words:', referenceWords.length);
 
             try {
                 recognition.start();
@@ -772,6 +519,7 @@
         }
 
         function stopRecording() {
+            console.log('Stopping recording, final word count:', recognizedWords.length);
             isRecording = false;
             
             try {
@@ -800,6 +548,11 @@
             const durationSeconds = (endTime - startTime) / 1000;
             const durationMinutes = durationSeconds / 60;
 
+            console.log('Calculating results:');
+            console.log('- Duration:', durationSeconds, 'seconds');
+            console.log('- Words read:', recognizedWords.length);
+            console.log('- Reference words:', referenceWords.length);
+
             // Calculate WPM
             const wordsRead = recognizedWords.length;
             const wpm = Math.round(wordsRead / durationMinutes);
@@ -817,6 +570,10 @@
             const accuracy = referenceWords.length > 0 
                 ? Math.round((correctWords / referenceWords.length) * 100) 
                 : 0;
+
+            console.log('- Correct words:', correctWords);
+            console.log('- Accuracy:', accuracy + '%');
+            console.log('- WPM:', wpm);
 
             // Display results
             wpmValue.textContent = wpm;
@@ -868,11 +625,12 @@
 
         function resetTest() {
             recognizedWords = [];
-            recognizedText = '';
+            finalTranscript = '';
             liveText.textContent = 'Warte auf Aufnahme...';
             liveText.classList.add('empty');
             resultsSection.classList.remove('show');
             recordingStatus.innerHTML = '';
+            debugInfo.style.display = 'none';
             startBtn.disabled = false;
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -884,10 +642,6 @@
         // Initialize on load
         window.addEventListener('load', () => {
             initSpeechRecognition();
-            // Preload OCR worker in background
-            setTimeout(() => {
-                initOCRWorker();
-            }, 1000);
         });
 
         // Request permissions on first interaction
@@ -900,13 +654,6 @@
             }
             document.removeEventListener('click', requestPermissions);
         }, { once: true });
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', async () => {
-            if (ocrWorker) {
-                await ocrWorker.terminate();
-            }
-        });
     </script>
 </body>
 </html>
