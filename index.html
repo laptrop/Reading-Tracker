@@ -390,7 +390,13 @@
             };
 
             recognition.onresult = (event) => {
-                console.log('onresult - resultIndex:', event.resultIndex, 'total:', event.results.length);
+                const timestamp = new Date().toLocaleTimeString();
+                console.log(`[${timestamp}] onresult - resultIndex:`, event.resultIndex, 'total:', event.results.length);
+                
+                // Log all results for debugging
+                for (let i = 0; i < event.results.length; i++) {
+                    console.log(`  Result[${i}] isFinal:${event.results[i].isFinal} text:"${event.results[i][0].transcript}"`);
+                }
                 
                 // Get only the NEW results starting from resultIndex
                 let newFinal = '';
@@ -400,11 +406,10 @@
                     const transcript = event.results[i][0].transcript;
                     
                     if (event.results[i].isFinal) {
-                        console.log('NEW FINAL:', transcript);
+                        console.log('  → Adding NEW FINAL:', transcript);
                         newFinal += transcript + ' ';
                     } else {
-                        // Interim results are cumulative within current segment
-                        console.log('INTERIM:', transcript);
+                        console.log('  → INTERIM (display only):', transcript);
                         interim = transcript;
                     }
                 }
@@ -412,6 +417,7 @@
                 // Add ONLY the new final text to our running transcript
                 if (newFinal) {
                     finalTranscript += newFinal;
+                    console.log('  → Updated finalTranscript to:', finalTranscript);
                 }
 
                 // Display: all final text + current interim
@@ -420,11 +426,14 @@
                 liveText.classList.remove('empty');
                 
                 // Update word count - ONLY from final transcript
-                recognizedWords = normalizeText(finalTranscript).split(/\s+/).filter(w => w.length > 0);
+                const normalizedFinal = normalizeText(finalTranscript);
+                recognizedWords = normalizedFinal.split(/\s+/).filter(w => w.length > 0);
+                
+                console.log('  → Recognized words count:', recognizedWords.length);
                 
                 // Debug info
                 debugInfo.style.display = 'block';
-                debugText.textContent = `Finale Wörter: ${recognizedWords.length} | Text: "${finalTranscript.substring(0, 80)}..."`;
+                debugText.textContent = `Finale Wörter: ${recognizedWords.length} | Text: "${finalTranscript.substring(0, 80)}..." | Interim: "${interim.substring(0, 30)}"`;
             };
 
             recognition.onerror = (event) => {
