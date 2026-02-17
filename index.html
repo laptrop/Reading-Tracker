@@ -497,28 +497,28 @@
 
         <div id="fbMessage" class="status info"></div>
 
-        <!-- Debug: show both texts to understand accuracy issues -->
-        <details style="margin-top:16px;">
-            <summary style="cursor:pointer; color:#667eea; font-size:0.9em; font-weight:600;">
-                🔍 Vergleich anzeigen
+        <!-- Error summary - always visible, compact -->
+        <div id="fbErrorSummary" style="display:none; margin-top:12px;
+            background:#f8f9fa; border-radius:10px; padding:12px 16px;
+            font-size:0.9em; color:#495057;">
+        </div>
+
+        <!-- Detailed word-by-word view - collapsible -->
+        <details id="fbDetails" style="margin-top:12px;">
+            <summary style="cursor:pointer; color:#667eea; font-size:0.9em;
+                font-weight:600; padding:4px 0;">
+                🔍 Wort-für-Wort Analyse
             </summary>
-            <div style="margin-top:12px; display:grid; gap:10px;">
-                <div>
-                    <div style="font-size:0.8em; color:#6c757d; margin-bottom:4px;">
-                        📄 Referenztext (normalisiert):
-                    </div>
-                    <div id="fbRefText" style="background:#f8f9fa; padding:10px; border-radius:8px;
-                        font-size:0.85em; color:#495057; max-height:120px; overflow-y:auto;
-                        line-height:1.6; border:1px solid #dee2e6;"></div>
-                </div>
-                <div>
-                    <div style="font-size:0.8em; color:#6c757d; margin-bottom:4px;">
-                        🎤 Erkannter Text (Whisper):
-                    </div>
-                    <div id="fbTranscript" style="background:#f8f9fa; padding:10px; border-radius:8px;
-                        font-size:0.85em; color:#495057; max-height:120px; overflow-y:auto;
-                        line-height:1.6; border:1px solid #dee2e6;"></div>
-                </div>
+            <div id="fbWordView" style="margin-top:12px; line-height:2.2;
+                font-size:0.95em; background:#f8f9fa; padding:14px;
+                border-radius:10px; max-height:250px; overflow-y:auto;">
+            </div>
+            <div style="margin-top:8px; font-size:0.78em; color:#6c757d;
+                display:flex; gap:14px; flex-wrap:wrap;">
+                <span>🟢 richtig</span>
+                <span>🔴 falsch/ersetzt</span>
+                <span>⚫ ausgelassen</span>
+                <span>🔵 hinzugefügt</span>
             </div>
         </details>
 
@@ -567,6 +567,11 @@
             <div id="pagesList"></div>
         </div>
 
+        <div class="pages-list" id="frequentErrorsSection" style="display:none;">
+            <h3>🔴 Häufige Fehler:</h3>
+            <div id="frequentErrorsList"></div>
+        </div>
+
         <button class="btn btn-primary" onclick="newSession()" style="margin-top:20px">
             🔄 Neue Session
         </button>
@@ -588,7 +593,7 @@ const state = {
     mediaRecorder: null,
     audioChunks: [],
     referenceWords: [],
-    pages: [], // {wpm, accuracy, duration, wordCount}
+    pages: [], // {wpm, accuracy, duration, wordCount, errors, alignment}
 };
 
 // ══════════════════════════════════
@@ -937,18 +942,23 @@ async function processRecording() {
         const recognized = normalizeText(rawTranscript).split(/\s+/).filter(w => w.length > 0);
 
         const wpm = Math.round(recognized.length / (durationSeconds / 60));
-        const accuracy = calculateAccuracy(state.referenceWords, recognized);
+        
+        // Full alignment analysis
+        const alignment = alignWords(state.referenceWords, recognized);
+        const accuracy = calculateAccuracyFromAlignment(alignment, state.referenceWords.length);
 
-        // Save page result
+        // Save page result with full error data
         state.pages.push({
             page: state.currentPage,
             wpm,
             accuracy,
             duration: Math.round(durationSeconds),
-            wordCount: state.referenceWords.length
+            wordCount: state.referenceWords.length,
+            alignment,
+            rawTranscript
         });
 
-        showFeedback(wpm, accuracy, state.referenceWords, recognized, rawTranscript);
+        showFeedback(wpm, accuracy, alignment);
 
     } catch (err) {
         console.error('Processing error:', err);
@@ -960,29 +970,140 @@ async function processRecording() {
 // ══════════════════════════════════
 // MINI FEEDBACK
 // ══════════════════════════════════
-function showFeedback(wpm, accuracy, refWords, recWords, rawTranscript) {
+function showFeedback(wpm, accuracy, alignment) {
     document.getElementById('feedbackPageBadge').textContent = `Seite ${state.currentPage}`;
     document.getElementById('feedbackTitle').textContent = `✅ Seite ${state.currentPage} geschafft!`;
     document.getElementById('fbWpm').textContent = wpm;
     document.getElementById('fbAccuracy').textContent = accuracy + '%';
 
-    // Quick message
+    // Count error types
+    const substitutions = alignment.filter(a => a.type === 'substitution').length;
+    const omissions     = alignment.filter(a => a.type === 'omission').length;
+    const additions     = alignment.filter(a => a.type === 'addition').length;
+    const correct       = alignment.filter(a => a.type === 'correct').length;
+    const totalErrors   = substitutions + omissions;
+
+    // Motivational message
     let msg = '';
     if (accuracy >= 95) msg = '🌟 Fantastisch! Fast fehlerfrei!';
     else if (accuracy >= 85) msg = '👍 Sehr gut! Weiter so!';
     else if (accuracy >= 70) msg = '💪 Gut gemacht! Üb weiter!';
     else msg = '📖 Weiterlesen macht besser!';
-
     if (wpm > 150) msg += ' ⚡ Super schnell!';
 
     document.getElementById('fbMessage').textContent = msg;
     document.getElementById('fbMessage').className = 'status ' + (accuracy >= 85 ? 'success' : 'info');
 
-    // Show comparison texts for debugging
-    document.getElementById('fbRefText').textContent = refWords.join(' ');
-    document.getElementById('fbTranscript').textContent = rawTranscript;
+    // Error summary (compact, always visible if errors exist)
+    const errSummary = document.getElementById('fbErrorSummary');
+    if (totalErrors > 0 || additions > 0) {
+        const parts = [];
+        if (correct > 0)       parts.push(`✅ ${correct} richtig`);
+        if (substitutions > 0) parts.push(`🔴 ${substitutions} falsch`);
+        if (omissions > 0)     parts.push(`⚫ ${omissions} ausgelassen`);
+        if (additions > 0)     parts.push(`🔵 ${additions} hinzugefügt`);
+        errSummary.innerHTML = parts.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+        errSummary.style.display = 'block';
+    } else {
+        errSummary.style.display = 'none';
+    }
+
+    // Word-by-word view
+    const wordView = document.getElementById('fbWordView');
+    wordView.innerHTML = alignment.map(a => {
+        switch(a.type) {
+            case 'correct':
+                return `<span style="color:#28a745; margin-right:6px;">${a.ref}</span>`;
+            case 'substitution':
+                return `<span style="color:#dc3545; margin-right:6px;" title="gesagt: ${a.rec}">
+                    <s style="opacity:0.6">${a.ref}</s>→${a.rec}</span>`;
+            case 'omission':
+                return `<span style="color:#6c757d; margin-right:6px; text-decoration:line-through;">[${a.ref}]</span>`;
+            case 'addition':
+                return `<span style="color:#007bff; margin-right:6px; font-style:italic;">+${a.rec}</span>`;
+            default:
+                return '';
+        }
+    }).join(' ');
 
     showScreen('screenFeedback');
+}
+
+// ══════════════════════════════════
+// WORD ALIGNMENT (Needleman-Wunsch)
+// ══════════════════════════════════
+// Returns array of {type, ref, rec} for each word
+// types: 'correct' | 'substitution' | 'omission' | 'addition'
+function alignWords(reference, recognized) {
+    const m = reference.length;
+    const n = recognized.length;
+
+    // Limit length for performance
+    const ref = reference.slice(0, Math.min(m, 300));
+    const rec = recognized.slice(0, Math.min(n, 300));
+
+    // Build DP table
+    const GAP = -1;
+    const MATCH = 2;
+    const MISMATCH = -1;
+
+    const dp = Array.from({length: ref.length + 1}, (_, i) =>
+        Array.from({length: rec.length + 1}, (_, j) => {
+            if (i === 0) return j * GAP;
+            if (j === 0) return i * GAP;
+            return 0;
+        })
+    );
+
+    for (let i = 1; i <= ref.length; i++) {
+        for (let j = 1; j <= rec.length; j++) {
+            const score = ref[i-1] === rec[j-1] ? MATCH : MISMATCH;
+            dp[i][j] = Math.max(
+                dp[i-1][j-1] + score,  // match/mismatch
+                dp[i-1][j] + GAP,       // omission (ref word skipped)
+                dp[i][j-1] + GAP        // addition (extra word spoken)
+            );
+        }
+    }
+
+    // Traceback
+    const result = [];
+    let i = ref.length, j = rec.length;
+
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0) {
+            const score = ref[i-1] === rec[j-1] ? MATCH : MISMATCH;
+            if (dp[i][j] === dp[i-1][j-1] + score) {
+                result.unshift({
+                    type: ref[i-1] === rec[j-1] ? 'correct' : 'substitution',
+                    ref: ref[i-1],
+                    rec: rec[j-1]
+                });
+                i--; j--;
+                continue;
+            }
+        }
+        if (i > 0 && dp[i][j] === dp[i-1][j] + GAP) {
+            result.unshift({ type: 'omission', ref: ref[i-1], rec: null });
+            i--;
+        } else {
+            result.unshift({ type: 'addition', ref: null, rec: rec[j-1] });
+            j--;
+        }
+    }
+
+    return result;
+}
+
+function calculateAccuracyFromAlignment(alignment, refLength) {
+    if (refLength === 0) return 0;
+    const correct = alignment.filter(a => a.type === 'correct').length;
+    return Math.round((correct / refLength) * 100);
+}
+
+function calculateAccuracy(reference, recognized) {
+    const alignment = alignWords(reference, recognized);
+    return calculateAccuracyFromAlignment(alignment, reference.length);
 }
 
 // ══════════════════════════════════
@@ -1036,18 +1157,57 @@ function buildSummary() {
     document.getElementById('sumWpm').textContent = avgWpm;
     document.getElementById('sumAccuracy').textContent = avgAccuracy + '%';
 
-    // Pages list
+    // Pages list with error counts
     const list = document.getElementById('pagesList');
-    list.innerHTML = pages.map(p => `
-        <div class="page-row">
-            <div class="page-num">${p.page}</div>
-            <div class="page-stats">
-                <div class="page-stat">⚡ <strong>${p.wpm}</strong> W/min</div>
-                <div class="page-stat">🎯 <strong>${p.accuracy}%</strong></div>
-                <div class="page-stat">⏱️ ${p.duration}s</div>
-            </div>
-        </div>
-    `).join('');
+    list.innerHTML = pages.map(p => {
+        const subs = p.alignment ? p.alignment.filter(a => a.type === 'substitution').length : 0;
+        const omis = p.alignment ? p.alignment.filter(a => a.type === 'omission').length : 0;
+        const errorStr = (subs + omis) > 0
+            ? `<span style="color:#dc3545; font-size:0.85em;">
+                ${subs > 0 ? `🔴${subs}` : ''} ${omis > 0 ? `⚫${omis}` : ''}
+               </span>`
+            : `<span style="color:#28a745; font-size:0.85em;">✅</span>`;
+        return `
+            <div class="page-row">
+                <div class="page-num">${p.page}</div>
+                <div class="page-stats">
+                    <div class="page-stat">⚡ <strong>${p.wpm}</strong> W/min</div>
+                    <div class="page-stat">🎯 <strong>${p.accuracy}%</strong></div>
+                    <div class="page-stat">${errorStr}</div>
+                </div>
+            </div>`;
+    }).join('');
+
+    // Collect all errors across pages
+    const allErrors = {};
+    pages.forEach(p => {
+        if (!p.alignment) return;
+        p.alignment
+            .filter(a => a.type === 'substitution' || a.type === 'omission')
+            .forEach(a => {
+                const word = a.ref;
+                allErrors[word] = (allErrors[word] || 0) + 1;
+            });
+    });
+
+    const topErrors = Object.entries(allErrors)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+    const errSection = document.getElementById('frequentErrorsSection');
+    const errList = document.getElementById('frequentErrorsList');
+
+    if (topErrors.length > 0) {
+        errList.innerHTML = topErrors.map(([word, count]) =>
+            `<div class="page-row">
+                <div style="flex:1; font-weight:600; color:#495057;">${word}</div>
+                <div style="color:#dc3545; font-size:0.9em;">${count}× Fehler</div>
+            </div>`
+        ).join('');
+        errSection.style.display = 'block';
+    } else {
+        errSection.style.display = 'none';
+    }
 }
 
 // ══════════════════════════════════
