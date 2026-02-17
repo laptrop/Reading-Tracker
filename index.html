@@ -671,10 +671,47 @@
         </div>
         <h1>Lesetrainer</h1>
         <p class="subtitle" style="margin-top:8px;">Lesen üben & Fortschritte messen</p>
-        <button class="btn btn-primary" onclick="startSession()" style="margin-top:8px;">
-            ▶
-            Session starten
+        
+        <!-- Profile Selection -->
+        <div style="margin-bottom:20px;">
+            <label style="display:block; font-size:0.8em; font-weight:700; color:var(--muted); 
+                margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+                Wer liest heute?
+            </label>
+            <select id="profileSelect" onchange="switchProfile()" 
+                style="width:100%; padding:12px; border:1.5px solid var(--border); 
+                border-radius:var(--radius-sm); font-family:'Nunito',sans-serif; 
+                font-size:1em; font-weight:600; background:var(--surface2); 
+                color:var(--text); cursor:pointer;">
+                <option value="">Profil wählen...</option>
+            </select>
+            <button class="btn btn-ghost" onclick="showProfileManager()" 
+                style="margin-top:8px; font-size:0.85em; padding:10px;">
+                ⚙️ Profile verwalten
+            </button>
+        </div>
+        
+        <button class="btn btn-primary" onclick="startSession()" id="startSessionBtn" disabled>
+            ▶ Session starten
         </button>
+        
+        <!-- Dev Tools (versteckt, nur für Tests) -->
+        <details style="margin-top:20px; border-top:1px solid var(--border); padding-top:12px;">
+            <summary style="cursor:pointer; color:var(--muted); font-size:0.8em; font-weight:700;">
+                🛠️ Entwickler-Tools
+            </summary>
+            <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+                <button class="btn btn-ghost" onclick="generateDummyData()" style="font-size:0.85em; padding:10px;">
+                    📊 20 Test-Sessions generieren
+                </button>
+                <button class="btn btn-ghost" onclick="clearAllData()" style="font-size:0.85em; padding:10px;">
+                    🗑️ Alle Daten löschen
+                </button>
+                <button class="btn btn-ghost" onclick="exportData()" style="font-size:0.85em; padding:10px;">
+                    💾 Daten exportieren (JSON)
+                </button>
+            </div>
+        </details>
     </div>
 </div>
 
@@ -924,6 +961,38 @@
 </div><!-- /container -->
 
 <!-- ══════════════════════════════════
+     SCREEN 7: PROFILE MANAGER
+══════════════════════════════════ -->
+<div class="screen" id="screenProfiles">
+    <div class="card" style="margin-top:32px;">
+        <h1 style="font-size:1.4em; margin-bottom:16px;">Profile verwalten</h1>
+        
+        <div id="profileList" style="margin-bottom:20px;"></div>
+        
+        <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+            <label style="display:block; font-size:0.8em; font-weight:700; color:var(--muted); 
+                margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+                Neues Profil
+            </label>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="newProfileName" placeholder="Name eingeben..." 
+                    style="flex:1; padding:12px; border:1.5px solid var(--border); 
+                    border-radius:var(--radius-sm); font-family:'Nunito',sans-serif; 
+                    font-size:0.95em; font-weight:600; background:var(--surface2);"
+                    onkeypress="if(event.key==='Enter') addProfile()">
+                <button class="btn btn-primary" onclick="addProfile()" style="margin:0;">
+                    Hinzufügen
+                </button>
+            </div>
+        </div>
+        
+        <button class="btn btn-ghost" onclick="closeProfileManager()" style="margin-top:16px;">
+            ← Zurück
+        </button>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
      NAVBAR
 ══════════════════════════════════ -->
 <nav class="navbar" id="navbar">
@@ -951,7 +1020,159 @@ const state = {
     audioChunks: [],
     referenceWords: [],
     pages: [], // {wpm, accuracy, duration, wordCount, errors, alignment}
+    currentProfile: null,
 };
+
+// ══════════════════════════════════
+// PROFILES
+// ══════════════════════════════════
+const PROFILES_KEY = 'lesetrainer_profiles';
+const SESSIONS_KEY_PREFIX = 'lesetrainer_sessions_';
+
+function loadProfiles() {
+    try {
+        const profiles = JSON.parse(localStorage.getItem(PROFILES_KEY) || '[]');
+        // Ensure at least one default profile exists
+        if (profiles.length === 0) {
+            profiles.push({ id: 'default', name: 'JJ', createdAt: new Date().toISOString() });
+            localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+        }
+        return profiles;
+    } catch { return [{ id: 'default', name: 'JJ', createdAt: new Date().toISOString() }]; }
+}
+
+function saveProfiles(profiles) {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+}
+
+function getCurrentProfile() {
+    if (!state.currentProfile) {
+        const lastProfile = localStorage.getItem('lesetrainer_last_profile');
+        if (lastProfile) {
+            state.currentProfile = lastProfile;
+        } else {
+            const profiles = loadProfiles();
+            state.currentProfile = profiles[0]?.id || null;
+        }
+    }
+    return state.currentProfile;
+}
+
+function setCurrentProfile(profileId) {
+    state.currentProfile = profileId;
+    localStorage.setItem('lesetrainer_last_profile', profileId);
+}
+
+function getSessionsKey() {
+    const profileId = getCurrentProfile();
+    return profileId ? SESSIONS_KEY_PREFIX + profileId : STORAGE_KEY;
+}
+
+function switchProfile() {
+    const select = document.getElementById('profileSelect');
+    const profileId = select.value;
+    if (!profileId) {
+        document.getElementById('startSessionBtn').disabled = true;
+        return;
+    }
+    setCurrentProfile(profileId);
+    document.getElementById('startSessionBtn').disabled = false;
+    
+    // Reload navbar visibility based on new profile's data
+    const sessions = loadSessions();
+    showNavbar(sessions.length > 0);
+    
+    // If on stats screen, rebuild it
+    if (document.getElementById('screenStats').classList.contains('active')) {
+        buildStatsScreen();
+    }
+}
+
+function populateProfileSelect() {
+    const profiles = loadProfiles();
+    const select = document.getElementById('profileSelect');
+    const currentProfile = getCurrentProfile();
+    
+    select.innerHTML = '<option value="">Profil wählen...</option>' + 
+        profiles.map(p => 
+            `<option value="${p.id}" ${p.id === currentProfile ? 'selected' : ''}>${p.name}</option>`
+        ).join('');
+    
+    document.getElementById('startSessionBtn').disabled = !currentProfile;
+}
+
+function showProfileManager() {
+    buildProfileList();
+    showScreen('screenProfiles');
+}
+
+function closeProfileManager() {
+    showScreen('screenStart');
+    populateProfileSelect();
+}
+
+function buildProfileList() {
+    const profiles = loadProfiles();
+    const list = document.getElementById('profileList');
+    
+    list.innerHTML = profiles.map(p => {
+        const sessions = JSON.parse(localStorage.getItem(SESSIONS_KEY_PREFIX + p.id) || '[]');
+        return `
+            <div style="display:flex; align-items:center; padding:12px; background:var(--surface2); 
+                border-radius:var(--radius-sm); margin-bottom:8px; border:1.5px solid var(--border);">
+                <div style="flex:1;">
+                    <div style="font-weight:700; color:var(--text);">${p.name}</div>
+                    <div style="font-size:0.8em; color:var(--muted); margin-top:2px;">
+                        ${sessions.length} Sessions
+                    </div>
+                </div>
+                <button onclick="deleteProfile('${p.id}')" 
+                    style="background:none; border:none; cursor:pointer; font-size:1.2em; 
+                    color:var(--red); padding:8px;" 
+                    title="Profil löschen"
+                    ${profiles.length === 1 ? 'disabled' : ''}>🗑️</button>
+            </div>`;
+    }).join('');
+}
+
+function addProfile() {
+    const input = document.getElementById('newProfileName');
+    const name = input.value.trim();
+    if (!name) return;
+    
+    const profiles = loadProfiles();
+    const id = 'profile_' + Date.now();
+    profiles.push({ id, name, createdAt: new Date().toISOString() });
+    saveProfiles(profiles);
+    
+    input.value = '';
+    buildProfileList();
+    populateProfileSelect();
+}
+
+function deleteProfile(profileId) {
+    const profiles = loadProfiles();
+    if (profiles.length === 1) {
+        alert('Das letzte Profil kann nicht gelöscht werden');
+        return;
+    }
+    
+    const profile = profiles.find(p => p.id === profileId);
+    if (!confirm(`Profil "${profile.name}" wirklich löschen? Alle Sessions gehen verloren!`)) return;
+    
+    // Delete profile and its sessions
+    const newProfiles = profiles.filter(p => p.id !== profileId);
+    saveProfiles(newProfiles);
+    localStorage.removeItem(SESSIONS_KEY_PREFIX + profileId);
+    
+    // If deleting current profile, switch to first remaining
+    if (getCurrentProfile() === profileId) {
+        setCurrentProfile(newProfiles[0].id);
+    }
+    
+    buildProfileList();
+    populateProfileSelect();
+}
 
 // ══════════════════════════════════
 // SCREEN MANAGEMENT
@@ -1652,20 +1873,22 @@ function navTo(tab) {
 }
 
 // ══════════════════════════════════
-// LOCALSTORAGE
+// LOCALSTORAGE (now profile-aware)
 // ══════════════════════════════════
-const STORAGE_KEY = 'lesetrainer_sessions';
+const STORAGE_KEY = 'lesetrainer_sessions'; // Legacy key
 
 function loadSessions() {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const key = getSessionsKey();
+        return JSON.parse(localStorage.getItem(key) || '[]');
     } catch { return []; }
 }
 
 function saveSession(sessionData) {
     const sessions = loadSessions();
     sessions.push(sessionData);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    const key = getSessionsKey();
+    localStorage.setItem(key, JSON.stringify(sessions));
 }
 
 // ══════════════════════════════════
@@ -1770,14 +1993,15 @@ function buildSessionHistory(sessions) {
         return;
     }
     const moodEmoji = { '-2':'😞', '-1':'😕', '0':'😐', '1':'🙂', '2':'😄' };
-    list.innerHTML = [...sessions].reverse().slice(0, 20).map(s => {
+    list.innerHTML = [...sessions].reverse().slice(0, 20).map((s, idx) => {
+        const originalIdx = sessions.length - 1 - idx; // Actual index in array
         const d = new Date(s.date);
         const dateStr = d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
         const timeStr = d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
         const mood = s.mood != null ? (moodEmoji[String(s.mood)] || '') : '';
         return `
             <div class="session-history-item">
-                <div class="session-date">${dateStr}<br>${timeStr}</div>
+                <div class="session-date">${dateStr}<br><span style="font-size:0.85em;">${timeStr}</span></div>
                 <div class="session-pills">
                     <span class="pill pill-blue">${s.avgWpm} WPM</span>
                     <span class="pill pill-green">${s.avgAccuracy}%</span>
@@ -1785,6 +2009,10 @@ function buildSessionHistory(sessions) {
                     <span class="pill pill-grey">${s.durationMin} min</span>
                 </div>
                 ${mood ? `<div class="session-mood">${mood}</div>` : ''}
+                <button onclick="deleteSession(${originalIdx})" 
+                    style="margin-left:4px; background:none; border:none; cursor:pointer; 
+                    font-size:1.1em; color:var(--red); padding:4px;" 
+                    title="Session löschen">🗑️</button>
             </div>`;
     }).join('');
 }
@@ -1918,9 +2146,100 @@ function groupSessions(sessions, range) {
 
 // Show navbar on start screen if sessions exist
 (function() {
+    populateProfileSelect();
     const sessions = loadSessions();
     if (sessions.length > 0) showNavbar(true);
 })();
+
+// ══════════════════════════════════
+// DEV TOOLS & SESSION MANAGEMENT
+// ══════════════════════════════════
+function generateDummyData() {
+    const profileName = loadProfiles().find(p => p.id === getCurrentProfile())?.name || 'Unbekannt';
+    if (!confirm(`20 Test-Sessions für "${profileName}" generieren?`)) return;
+    
+    const now = Date.now();
+    const sessions = [];
+    
+    for (let i = 0; i < 20; i++) {
+        // Spread over last 30 days
+        const daysAgo = Math.floor(Math.random() * 30);
+        const date = new Date(now - daysAgo * 24 * 60 * 60 * 1000);
+        date.setHours(Math.floor(Math.random() * 12) + 8); // 8-20 Uhr
+        date.setMinutes(Math.floor(Math.random() * 60));
+        
+        // Realistic progression: improve over time (older = lower WPM)
+        const baseWpm = 25 + (30 - daysAgo) * 0.8; // Start at 25, improve to ~50
+        const wpm = Math.round(baseWpm + (Math.random() * 10 - 5));
+        
+        const baseAcc = 75 + (30 - daysAgo) * 0.5; // Start at 75%, improve to ~90%
+        const accuracy = Math.round(Math.min(98, baseAcc + (Math.random() * 10 - 5)));
+        
+        sessions.push({
+            id: date.getTime() + i,
+            date: date.toISOString(),
+            durationMin: Math.floor(Math.random() * 8) + 3, // 3-10 min
+            pages: Math.floor(Math.random() * 4) + 1,       // 1-4 pages
+            avgWpm: wpm,
+            avgAccuracy: accuracy,
+            totalWords: Math.floor(wpm * (Math.random() * 5 + 3)), // ~words read
+            topErrors: [
+                { word: 'und', count: Math.floor(Math.random() * 3) + 1 },
+                { word: 'der', count: Math.floor(Math.random() * 2) + 1 },
+            ],
+            mood: Math.floor(Math.random() * 5) - 2, // -2 to 2
+        });
+    }
+    
+    // Sort by date
+    sessions.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const key = getSessionsKey();
+    localStorage.setItem(key, JSON.stringify(sessions));
+    showNavbar(true);
+    alert('✅ 20 Test-Sessions erstellt!');
+    if (document.getElementById('screenStats').classList.contains('active')) {
+        buildStatsScreen();
+    }
+}
+
+function deleteSession(index) {
+    if (!confirm('Diese Session wirklich löschen?')) return;
+    const sessions = loadSessions();
+    sessions.splice(index, 1);
+    const key = getSessionsKey();
+    localStorage.setItem(key, JSON.stringify(sessions));
+    buildStatsScreen();
+    if (sessions.length === 0) showNavbar(false);
+}
+
+function clearAllData() {
+    const profileName = loadProfiles().find(p => p.id === getCurrentProfile())?.name || 'Unbekannt';
+    if (!confirm(`ALLE Sessions von "${profileName}" löschen? Das kann nicht rückgängig gemacht werden!`)) return;
+    const key = getSessionsKey();
+    localStorage.removeItem(key);
+    showNavbar(false);
+    alert('✅ Alle Daten gelöscht');
+    if (document.getElementById('screenStats').classList.contains('active')) {
+        buildStatsScreen();
+    }
+}
+
+function exportData() {
+    const sessions = loadSessions();
+    if (sessions.length === 0) {
+        alert('Keine Daten zum Exportieren vorhanden');
+        return;
+    }
+    const json = JSON.stringify(sessions, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lesetrainer-export-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
 
 // ══════════════════════════════════
 // HELPERS
