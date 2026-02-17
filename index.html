@@ -421,29 +421,32 @@
             recognition.onresult = (event) => {
                 addLog(`📝 onresult triggered - resultIndex: ${event.resultIndex}, total: ${event.results.length}`);
                 
-                // Get only the NEW results starting from resultIndex
-                let newFinal = '';
+                // Chrome Mobile returns CUMULATIVE results - each new result contains all previous text
+                // So we only need to take the LAST final result, not accumulate them
+                let latestFinal = '';
                 let interim = '';
                 
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-                    
+                // Find the LAST final result (most complete)
+                for (let i = event.results.length - 1; i >= 0; i--) {
                     if (event.results[i].isFinal) {
-                        addLog(`  ✓ FINAL[${i}]: "${transcript.substring(0, 30)}..."`);
-                        newFinal += transcript + ' ';
-                    } else {
-                        addLog(`  ⏳ INTERIM[${i}]: "${transcript.substring(0, 30)}..."`);
-                        interim = transcript;
+                        latestFinal = event.results[i][0].transcript;
+                        addLog(`  ✓ Taking LAST FINAL[${i}]: "${latestFinal.substring(0, 50)}..."`);
+                        break;
                     }
                 }
                 
-                // Add ONLY the new final text to our running transcript
-                if (newFinal) {
-                    finalTranscript += newFinal;
-                    addLog(`  → Total final words now: ${normalizeText(finalTranscript).split(/\s+/).filter(w => w.length > 0).length}`);
+                // If no final result, get the last interim
+                if (!latestFinal && event.results.length > 0) {
+                    interim = event.results[event.results.length - 1][0].transcript;
+                    addLog(`  ⏳ INTERIM: "${interim.substring(0, 30)}..."`);
+                }
+                
+                // Store the latest complete final transcript
+                if (latestFinal) {
+                    finalTranscript = latestFinal + ' ';
                 }
 
-                // Display: all final text + current interim
+                // Display: final + interim
                 const displayText = finalTranscript + interim;
                 liveText.textContent = displayText || 'Spreche jetzt...';
                 liveText.classList.remove('empty');
@@ -451,6 +454,8 @@
                 // Update word count - ONLY from final transcript
                 const normalizedFinal = normalizeText(finalTranscript);
                 recognizedWords = normalizedFinal.split(/\s+/).filter(w => w.length > 0);
+                
+                addLog(`  → Total words: ${recognizedWords.length}`);
             };
 
             recognition.onerror = (event) => {
