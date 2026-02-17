@@ -492,6 +492,154 @@
             margin: 16px 0;
         }
 
+        /* ── NAVBAR ── */
+        .navbar {
+            display: none;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            z-index: 50;
+            padding: 0;
+        }
+        .navbar.show { display: flex; }
+        .nav-btn {
+            flex: 1;
+            padding: 12px 8px 14px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.72em;
+            font-weight: 700;
+            color: var(--muted);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.15s;
+        }
+        .nav-btn .nav-icon { font-size: 1.5em; line-height: 1; }
+        .nav-btn.active { color: var(--accent); }
+        .nav-btn:hover { color: var(--accent); }
+
+        /* padding so content isn't hidden behind navbar */
+        .has-navbar { padding-bottom: 72px; }
+
+        /* ── SMILEY SCREEN ── */
+        .smiley-row {
+            display: flex;
+            justify-content: space-around;
+            margin: 24px 0;
+        }
+        .smiley-btn {
+            font-size: 2.4em;
+            background: none;
+            border: 3px solid transparent;
+            border-radius: 50%;
+            width: 60px; height: 60px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            line-height: 1;
+        }
+        .smiley-btn:hover { transform: scale(1.15); }
+        .smiley-btn.selected {
+            border-color: var(--accent);
+            background: var(--blue-bg);
+            transform: scale(1.2);
+        }
+
+        /* ── STATS SCREEN ── */
+        .tab-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface2);
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.8em;
+            font-weight: 700;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .tab-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .metric-tabs {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .metric-tab {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            background: var(--surface2);
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.8em;
+            font-weight: 700;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .metric-tab.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        /* SVG Chart */
+        .chart-wrap {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px 8px 8px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .chart-wrap svg { width: 100%; display: block; }
+
+        .stats-empty {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+        .stats-empty .empty-icon { font-size: 3em; margin-bottom: 12px; }
+
+        .session-history-item {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .session-history-item:last-child { border-bottom: none; }
+        .session-date {
+            font-size: 0.8em;
+            font-weight: 700;
+            color: var(--muted);
+            min-width: 56px;
+        }
+        .session-pills {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+        .session-mood { font-size: 1.3em; margin-left: auto; }
+
         @media (max-width: 480px) {
             body { padding: 10px; }
             .card { padding: 20px; }
@@ -694,13 +842,100 @@
             <div id="frequentErrorsList"></div>
         </div>
 
-        <button class="btn btn-primary" onclick="newSession()" style="margin-top:20px">
-            ↺ Neue Session
+        <button class="btn btn-primary" onclick="goToSmiley()" style="margin-top:20px">
+            → Weiter
         </button>
     </div>
 </div>
 
+<!-- ══════════════════════════════════
+     SCREEN 5: SMILEY FEEDBACK
+══════════════════════════════════ -->
+<div class="screen" id="screenSmiley">
+    <div class="card" style="margin-top:32px;">
+        <div style="text-align:center; margin-bottom:8px;">
+            <span style="font-size:3em;">🎉</span>
+        </div>
+        <h1 style="font-size:1.4em; margin-bottom:6px;">Wie war die Session?</h1>
+        <p class="subtitle">JJ, wie hat dir das Lesen heute gefallen?</p>
+
+        <div class="smiley-row">
+            <button class="smiley-btn" onclick="selectSmiley(-2)" data-val="-2" title="Gar nicht">😞</button>
+            <button class="smiley-btn" onclick="selectSmiley(-1)" data-val="-1" title="Nicht so gut">😕</button>
+            <button class="smiley-btn" onclick="selectSmiley(0)"  data-val="0"  title="Ok">😐</button>
+            <button class="smiley-btn" onclick="selectSmiley(1)"  data-val="1"  title="Gut">🙂</button>
+            <button class="smiley-btn" onclick="selectSmiley(2)"  data-val="2"  title="Super!">😄</button>
+        </div>
+
+        <button class="btn btn-primary" id="smileyConfirmBtn" onclick="confirmSmiley()" disabled>
+            Fertig!
+        </button>
+        <button class="btn btn-ghost" onclick="confirmSmiley(true)">
+            Überspringen
+        </button>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 6: STATISTIK
+══════════════════════════════════ -->
+<div class="screen" id="screenStats">
+    <div style="padding-top: 8px;">
+
+        <div class="card">
+            <h2>Zeitraum</h2>
+            <div class="tab-row">
+                <button class="tab-btn active" onclick="setTimeRange('days')"   id="tabDays">Tage</button>
+                <button class="tab-btn"        onclick="setTimeRange('weeks')"  id="tabWeeks">Wochen</button>
+                <button class="tab-btn"        onclick="setTimeRange('months')" id="tabMonths">Monate</button>
+            </div>
+
+            <h2 style="margin-top:4px;">Metrik</h2>
+            <div class="metric-tabs">
+                <button class="metric-tab active" onclick="setMetric('wpm')"      id="mWpm">WPM</button>
+                <button class="metric-tab"        onclick="setMetric('accuracy')" id="mAcc">Genauigkeit</button>
+                <button class="metric-tab"        onclick="setMetric('mood')"     id="mMood">Stimmung</button>
+                <button class="metric-tab"        onclick="setMetric('words')"    id="mWords">Wörter</button>
+            </div>
+
+            <div class="chart-wrap" id="chartWrap">
+                <svg id="chart" height="160" viewBox="0 0 300 160" preserveAspectRatio="none"></svg>
+            </div>
+
+            <div id="statsEmpty" class="stats-empty" style="display:none;">
+                <div class="empty-icon">📊</div>
+                Noch keine Daten für diesen Zeitraum
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Letzte Sessions</h2>
+            <div id="sessionHistoryList">
+                <div class="stats-empty">
+                    <div class="empty-icon">📚</div>
+                    Noch keine Sessions gespeichert
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
 </div><!-- /container -->
+
+<!-- ══════════════════════════════════
+     NAVBAR
+══════════════════════════════════ -->
+<nav class="navbar" id="navbar">
+    <button class="nav-btn active" id="navSession" onclick="navTo('session')">
+        <span class="nav-icon">📖</span>
+        Session
+    </button>
+    <button class="nav-btn" id="navStats" onclick="navTo('stats')">
+        <span class="nav-icon">📊</span>
+        Statistik
+    </button>
+</nav>
 
 <script>
 // ══════════════════════════════════
@@ -774,14 +1009,6 @@ function getRecDurationSeconds() {
 // ══════════════════════════════════
 // START SESSION
 // ══════════════════════════════════
-function startSession() {
-    state.currentPage = 1;
-    state.pages = [];
-    startSessionTimer();
-    loadPageScreen();
-    showScreen('screenPage');
-}
-
 // ══════════════════════════════════
 // LOAD PAGE SCREEN (reset for new page)
 // ══════════════════════════════════
@@ -1291,6 +1518,15 @@ function endSession() {
     showScreen('screenSummary');
 }
 
+function startSession() {
+    state.currentPage = 1;
+    state.pages = [];
+    startSessionTimer();
+    loadPageScreen();
+    showScreen('screenPage');
+    showNavbar(false); // Hide navbar during active session
+}
+
 // ══════════════════════════════════
 // SESSION SUMMARY
 // ══════════════════════════════════
@@ -1385,7 +1621,306 @@ function buildSummary() {
 // ══════════════════════════════════
 function newSession() {
     showScreen('screenStart');
+    showNavbar(true);
+    setNavActive('session');
 }
+
+// ══════════════════════════════════
+// NAVBAR
+// ══════════════════════════════════
+function showNavbar(show) {
+    document.getElementById('navbar').classList.toggle('show', show);
+    document.querySelectorAll('.screen').forEach(s => {
+        if (show) s.classList.add('has-navbar');
+        else s.classList.remove('has-navbar');
+    });
+}
+
+function setNavActive(tab) {
+    document.getElementById('navSession').classList.toggle('active', tab === 'session');
+    document.getElementById('navStats').classList.toggle('active', tab === 'stats');
+}
+
+function navTo(tab) {
+    setNavActive(tab);
+    if (tab === 'stats') {
+        buildStatsScreen();
+        showScreen('screenStats');
+    } else {
+        showScreen('screenStart');
+    }
+}
+
+// ══════════════════════════════════
+// LOCALSTORAGE
+// ══════════════════════════════════
+const STORAGE_KEY = 'lesetrainer_sessions';
+
+function loadSessions() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch { return []; }
+}
+
+function saveSession(sessionData) {
+    const sessions = loadSessions();
+    sessions.push(sessionData);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+}
+
+// ══════════════════════════════════
+// SMILEY SCREEN
+// ══════════════════════════════════
+let selectedMood = null;
+let pendingSessionData = null;
+
+function goToSmiley() {
+    // Build session data to save after mood is collected
+    const pages = state.pages;
+    const totalDurationMin = getSessionDurationMinutes();
+    const avgWpm      = Math.round(pages.reduce((s, p) => s + p.wpm, 0) / pages.length);
+    const avgAccuracy = Math.round(pages.reduce((s, p) => s + p.accuracy, 0) / pages.length);
+    const totalWords  = pages.reduce((s, p) => s + (p.wordCount || 0), 0);
+
+    // Collect frequent errors across pages
+    const errorCounts = {};
+    pages.forEach(p => {
+        if (!p.alignment) return;
+        p.alignment
+            .filter(a => a.type === 'substitution' || a.type === 'omission')
+            .forEach(a => { errorCounts[a.ref] = (errorCounts[a.ref] || 0) + 1; });
+    });
+    const topErrors = Object.entries(errorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([word, count]) => ({ word, count }));
+
+    pendingSessionData = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        durationMin: Math.round(totalDurationMin),
+        pages: pages.length,
+        avgWpm,
+        avgAccuracy,
+        totalWords,
+        topErrors,
+        mood: null,
+    };
+
+    // Reset smiley UI
+    selectedMood = null;
+    document.querySelectorAll('.smiley-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('smileyConfirmBtn').disabled = true;
+    showScreen('screenSmiley');
+}
+
+function selectSmiley(val) {
+    selectedMood = val;
+    document.querySelectorAll('.smiley-btn').forEach(b => {
+        b.classList.toggle('selected', parseInt(b.dataset.val) === val);
+    });
+    document.getElementById('smileyConfirmBtn').disabled = false;
+}
+
+function confirmSmiley(skip = false) {
+    if (pendingSessionData) {
+        pendingSessionData.mood = skip ? null : selectedMood;
+        saveSession(pendingSessionData);
+        pendingSessionData = null;
+    }
+    // Show navbar now that we have data
+    showNavbar(true);
+    setNavActive('session');
+    showScreen('screenStart');
+}
+
+// ══════════════════════════════════
+// STATS SCREEN
+// ══════════════════════════════════
+let statsTimeRange = 'days';
+let statsMetric    = 'wpm';
+
+function setTimeRange(range) {
+    statsTimeRange = range;
+    ['Days','Weeks','Months'].forEach(r => {
+        document.getElementById('tab' + r).classList.toggle('active', range === r.toLowerCase());
+    });
+    buildStatsScreen();
+}
+
+function setMetric(metric) {
+    statsMetric = metric;
+    ['wpm','accuracy','mood','words'].forEach(m => {
+        const map = { wpm:'mWpm', accuracy:'mAcc', mood:'mMood', words:'mWords' };
+        document.getElementById(map[m]).classList.toggle('active', metric === m);
+    });
+    buildStatsScreen();
+}
+
+function buildStatsScreen() {
+    const sessions = loadSessions();
+    buildSessionHistory(sessions);
+    buildChart(sessions);
+}
+
+function buildSessionHistory(sessions) {
+    const list = document.getElementById('sessionHistoryList');
+    if (sessions.length === 0) {
+        list.innerHTML = `<div class="stats-empty"><div class="empty-icon">📚</div>Noch keine Sessions gespeichert</div>`;
+        return;
+    }
+    const moodEmoji = { '-2':'😞', '-1':'😕', '0':'😐', '1':'🙂', '2':'😄' };
+    list.innerHTML = [...sessions].reverse().slice(0, 20).map(s => {
+        const d = new Date(s.date);
+        const dateStr = d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+        const timeStr = d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+        const mood = s.mood != null ? (moodEmoji[String(s.mood)] || '') : '';
+        return `
+            <div class="session-history-item">
+                <div class="session-date">${dateStr}<br>${timeStr}</div>
+                <div class="session-pills">
+                    <span class="pill pill-blue">${s.avgWpm} WPM</span>
+                    <span class="pill pill-green">${s.avgAccuracy}%</span>
+                    <span class="pill pill-grey">${s.pages} S.</span>
+                    <span class="pill pill-grey">${s.durationMin} min</span>
+                </div>
+                ${mood ? `<div class="session-mood">${mood}</div>` : ''}
+            </div>`;
+    }).join('');
+}
+
+function buildChart(sessions) {
+    const chartEl  = document.getElementById('chart');
+    const chartWrap = document.getElementById('chartWrap');
+    const emptyEl  = document.getElementById('statsEmpty');
+
+    if (sessions.length === 0) {
+        chartWrap.style.display = 'none';
+        emptyEl.style.display   = 'block';
+        return;
+    }
+
+    // Group sessions by time range
+    const groups = groupSessions(sessions, statsTimeRange);
+    const labels = Object.keys(groups);
+    const values = labels.map(l => {
+        const s = groups[l];
+        if (s.length === 0) return null;
+        switch (statsMetric) {
+            case 'wpm':      return Math.round(s.reduce((a,x) => a + x.avgWpm, 0) / s.length);
+            case 'accuracy': return Math.round(s.reduce((a,x) => a + x.avgAccuracy, 0) / s.length);
+            case 'mood':     {
+                const withMood = s.filter(x => x.mood != null);
+                return withMood.length ? +(s.reduce((a,x) => a + (x.mood||0), 0) / withMood.length).toFixed(1) : null;
+            }
+            case 'words':    return s.reduce((a,x) => a + x.totalWords, 0);
+        }
+    });
+
+    const nonNull = values.filter(v => v !== null);
+    if (nonNull.length === 0) {
+        chartWrap.style.display = 'none';
+        emptyEl.style.display   = 'block';
+        return;
+    }
+
+    chartWrap.style.display = 'block';
+    emptyEl.style.display   = 'none';
+
+    const W = 300, H = 160, PAD = { t:16, r:16, b:28, l:40 };
+    const cW = W - PAD.l - PAD.r;
+    const cH = H - PAD.t - PAD.b;
+
+    const minV = Math.min(...nonNull);
+    const maxV = Math.max(...nonNull);
+    const range = maxV - minV || 1;
+
+    const n = labels.length;
+    const step = cW / Math.max(n - 1, 1);
+
+    const toX = i => PAD.l + i * step;
+    const toY = v => v == null ? null : PAD.t + cH - ((v - minV) / range) * cH;
+
+    // Build SVG
+    let svg = '';
+
+    // Grid lines
+    for (let i = 0; i <= 4; i++) {
+        const y = PAD.t + (cH / 4) * i;
+        const val = Math.round(maxV - (range / 4) * i);
+        svg += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}"
+            stroke="#e2e8f0" stroke-width="1"/>`;
+        svg += `<text x="${PAD.l - 6}" y="${y + 4}" text-anchor="end"
+            font-size="9" fill="#94a3b8" font-family="Nunito">${val}</text>`;
+    }
+
+    // Area fill
+    const pts = values.map((v, i) => v != null ? `${toX(i)},${toY(v)}` : null).filter(Boolean);
+    if (pts.length >= 2) {
+        const first = pts[0].split(',');
+        const last  = pts[pts.length - 1].split(',');
+        const area  = `M${first[0]},${H - PAD.b} L${pts.join(' L')} L${last[0]},${H - PAD.b} Z`;
+        svg += `<path d="${area}" fill="#3b7df8" opacity="0.1"/>`;
+
+        // Line
+        svg += `<polyline points="${pts.join(' ')}" fill="none"
+            stroke="#3b7df8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+
+    // Dots + labels
+    values.forEach((v, i) => {
+        if (v == null) return;
+        const x = toX(i), y = toY(v);
+        svg += `<circle cx="${x}" cy="${y}" r="4" fill="#3b7df8"/>`;
+        svg += `<text x="${x}" y="${y - 8}" text-anchor="middle"
+            font-size="9" fill="#475569" font-weight="700" font-family="Nunito">${v}</text>`;
+    });
+
+    // X labels
+    const maxLabels = Math.min(n, 7);
+    const labelStep = Math.max(1, Math.floor(n / maxLabels));
+    labels.forEach((lbl, i) => {
+        if (i % labelStep !== 0 && i !== n - 1) return;
+        svg += `<text x="${toX(i)}" y="${H - PAD.b + 14}" text-anchor="middle"
+            font-size="9" fill="#94a3b8" font-family="Nunito">${lbl}</text>`;
+    });
+
+    chartEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    chartEl.innerHTML = svg;
+}
+
+function groupSessions(sessions, range) {
+    const groups = {};
+    const now = new Date();
+
+    sessions.forEach(s => {
+        const d = new Date(s.date);
+        let key;
+        if (range === 'days') {
+            // Last 14 days
+            const diffDays = Math.floor((now - d) / 86400000);
+            if (diffDays > 14) return;
+            key = d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+        } else if (range === 'weeks') {
+            // ISO week
+            const jan1 = new Date(d.getFullYear(), 0, 1);
+            const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+            key = `KW${week}`;
+        } else {
+            key = d.toLocaleDateString('de-DE', { month:'short', year:'2-digit' });
+        }
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(s);
+    });
+
+    return groups;
+}
+
+// Show navbar on start screen if sessions exist
+(function() {
+    const sessions = loadSessions();
+    if (sessions.length > 0) showNavbar(true);
+})();
 
 // ══════════════════════════════════
 // HELPERS
