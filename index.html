@@ -306,8 +306,23 @@
         <!-- Text Input Section -->
         <div class="section">
             <h2>1. Referenztext eingeben</h2>
-            <textarea id="referenceText" placeholder="Gib hier den Text ein, den dein Sohn lesen soll..."></textarea>
+            <textarea id="referenceText" placeholder="Gib hier den Text ein, den dein Sohn lesen soll... oder lade ein Foto hoch"></textarea>
             <div class="word-count" id="wordCount">0 Wörter</div>
+            
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px dashed #dee2e6;">
+                <h3 style="color: #495057; font-size: 1em; margin-bottom: 10px;">📸 Oder Foto von Text hochladen:</h3>
+                
+                <div class="controls">
+                    <label for="imageInput" class="btn-primary" style="display: inline-block; cursor: pointer;">
+                        📷 Foto auswählen
+                    </label>
+                    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                </div>
+                
+                <div id="ocrStatus"></div>
+                
+                <img id="previewImage" style="display: none; max-width: 100%; max-height: 300px; margin: 15px auto; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+            </div>
         </div>
         
         <!-- Recording Section -->
@@ -378,6 +393,9 @@
         // Elements
         const referenceTextArea = document.getElementById('referenceText');
         const wordCountEl = document.getElementById('wordCount');
+        const imageInput = document.getElementById('imageInput');
+        const ocrStatus = document.getElementById('ocrStatus');
+        const previewImage = document.getElementById('previewImage');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const countdown = document.getElementById('countdown');
@@ -397,7 +415,65 @@
             const text = referenceTextArea.value.trim();
             const words = text ? text.split(/\s+/).length : 0;
             wordCountEl.textContent = `${words} Wörter`;
+            
+            // Reset styling when user edits manually
+            referenceTextArea.style.borderColor = '';
+            referenceTextArea.style.background = '';
         });
+
+        // Image upload for OCR
+        imageInput.addEventListener('change', handleImageUpload);
+
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewImage.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+
+            showStatus('📷 Verarbeite Bild...', 'info', ocrStatus);
+
+            try {
+                // Send to OCR API
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch('/api/ocr', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'OCR fehlgeschlagen');
+                }
+
+                const result = await response.json();
+                const extractedText = result.text.trim();
+
+                if (extractedText) {
+                    referenceTextArea.value = extractedText;
+                    referenceTextArea.style.borderColor = '#28a745';
+                    referenceTextArea.style.background = '#f0fff4';
+                    
+                    const words = result.wordCount || extractedText.split(/\s+/).length;
+                    wordCountEl.textContent = `${words} Wörter`;
+                    
+                    showStatus('✅ Text erfolgreich erkannt! Du kannst ihn jetzt bei Bedarf korrigieren.', 'success', ocrStatus);
+                } else {
+                    showStatus('⚠️ Kein Text im Bild gefunden. Versuche ein klareres Foto.', 'warning', ocrStatus);
+                }
+
+            } catch (error) {
+                console.error('OCR error:', error);
+                showStatus('❌ Fehler bei der Texterkennung: ' + error.message, 'error', ocrStatus);
+            }
+        }
 
         // Recording controls
         startBtn.addEventListener('click', startRecording);
