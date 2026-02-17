@@ -340,7 +340,22 @@
         
         <!-- Recording Section -->
         <div class="section">
-            <h2>2. Aufnahme starten</h2>
+            <h2>2. Mikrofon-Test (optional)</h2>
+            <div class="controls">
+                <button id="testMicBtn" class="btn-primary" style="min-width: 180px;">🎤 Mikrofon testen</button>
+            </div>
+            <div id="micTestStatus"></div>
+            <div id="micLevel" style="display: none; margin-top: 10px;">
+                <div style="background: #e9ecef; height: 30px; border-radius: 15px; overflow: hidden;">
+                    <div id="micLevelBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #28a745 0%, #ffc107 50%, #dc3545 100%); transition: width 0.1s;"></div>
+                </div>
+                <p style="text-align: center; margin-top: 5px; font-size: 0.9em; color: #6c757d;">Sprich etwas - der Balken sollte sich bewegen</p>
+            </div>
+        </div>
+        
+        <!-- Recording Section -->
+        <div class="section">
+            <h2>3. Aufnahme starten</h2>
             <div class="controls">
                 <button id="startBtn" class="btn-primary">🎤 Aufnahme starten</button>
                 <button id="stopBtn" class="btn-danger" style="display: none;">⏹️ Stoppen</button>
@@ -420,6 +435,15 @@
         const debugLog = document.getElementById('debugLog');
         const copyLogBtn = document.getElementById('copyLogBtn');
         const countdown = document.getElementById('countdown');
+        const testMicBtn = document.getElementById('testMicBtn');
+        const micTestStatus = document.getElementById('micTestStatus');
+        const micLevel = document.getElementById('micLevel');
+        const micLevelBar = document.getElementById('micLevelBar');
+
+        let audioContext = null;
+        let micStream = null;
+        let micAnalyser = null;
+        let micTestInterval = null;
 
         // Event logging function
         function addLog(message, type = 'info') {
@@ -594,12 +618,84 @@
         stopBtn.addEventListener('click', stopRecording);
         newTestBtn.addEventListener('click', resetTest);
 
+        // Microphone test
+        testMicBtn.addEventListener('click', toggleMicTest);
+
+        async function toggleMicTest() {
+            if (micTestInterval) {
+                // Stop test
+                stopMicTest();
+            } else {
+                // Start test
+                try {
+                    showStatus('🎤 Fordere Mikrofon-Zugriff an...', 'info', micTestStatus);
+                    
+                    micStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        } 
+                    });
+                    
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioContext.createMediaStreamSource(micStream);
+                    micAnalyser = audioContext.createAnalyser();
+                    micAnalyser.fftSize = 256;
+                    source.connect(micAnalyser);
+                    
+                    const bufferLength = micAnalyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    
+                    micLevel.style.display = 'block';
+                    testMicBtn.textContent = '⏹️ Test stoppen';
+                    testMicBtn.classList.remove('btn-primary');
+                    testMicBtn.classList.add('btn-danger');
+                    showStatus('✅ Mikrofon aktiv! Sprich etwas...', 'success', micTestStatus);
+                    
+                    micTestInterval = setInterval(() => {
+                        micAnalyser.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                        const percentage = Math.min(100, (average / 128) * 100);
+                        micLevelBar.style.width = percentage + '%';
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('Microphone test error:', error);
+                    showStatus('❌ Mikrofon-Zugriff fehlgeschlagen: ' + error.message, 'error', micTestStatus);
+                }
+            }
+        }
+
+        function stopMicTest() {
+            if (micTestInterval) {
+                clearInterval(micTestInterval);
+                micTestInterval = null;
+            }
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+                micStream = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            micLevel.style.display = 'none';
+            testMicBtn.textContent = '🎤 Mikrofon testen';
+            testMicBtn.classList.remove('btn-danger');
+            testMicBtn.classList.add('btn-primary');
+            micTestStatus.innerHTML = '';
+        }
+
         async function startRecording() {
             const text = referenceTextArea.value.trim();
             if (!text) {
                 showStatus('⚠️ Bitte zuerst einen Referenztext eingeben!', 'warning', recordingStatus);
                 return;
             }
+
+            // Stop mic test if running
+            stopMicTest();
 
             // Clear previous log
             debugLog.innerHTML = '';
