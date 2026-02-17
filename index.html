@@ -787,10 +787,51 @@ function backToPhoto() {
 }
 
 // ══════════════════════════════════
+// WAKE LOCK (Bildschirm wach halten)
+// ══════════════════════════════════
+let wakeLock = null;
+
+async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Wake Lock aktiviert - Bildschirm bleibt an');
+        } catch (err) {
+            console.warn('Wake Lock fehlgeschlagen:', err);
+            // Not critical - recording still works, just screen may lock
+        }
+    } else {
+        console.warn('Wake Lock API nicht verfügbar in diesem Browser');
+    }
+}
+
+async function releaseWakeLock() {
+    if (wakeLock) {
+        try {
+            await wakeLock.release();
+            wakeLock = null;
+            console.log('Wake Lock freigegeben');
+        } catch (err) {
+            console.warn('Wake Lock release fehlgeschlagen:', err);
+        }
+    }
+}
+
+// Re-acquire wake lock if page becomes visible again (e.g. after tab switch)
+document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
+    }
+});
+
+// ══════════════════════════════════
 // RECORDING
 // ══════════════════════════════════
 async function startRecording() {
     state.audioChunks = [];
+
+    // Request wake lock FIRST before countdown (needs user gesture context)
+    await requestWakeLock();
 
     // Countdown
     const overlay = document.getElementById('countdownOverlay');
@@ -809,14 +850,21 @@ async function startRecording() {
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
 
-        state.mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        // Pick best supported audio format
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
+            : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : 'audio/mp4';
+
+        state.mediaRecorder = new MediaRecorder(stream, { mimeType });
         state.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) state.audioChunks.push(e.data); };
         state.mediaRecorder.onstop = async () => {
             stream.getTracks().forEach(t => t.stop());
             await processRecording();
         };
 
-        state.mediaRecorder.start();
+        state.mediaRecorder.start(1000); // Collect data every second (more robust)
         startRecTimer();
 
         document.getElementById('startRecBtn').style.display = 'none';
@@ -825,6 +873,7 @@ async function startRecording() {
         showStatus('🎤 Aufnahme läuft – jetzt vorlesen!', 'success', 'recordStatus');
 
     } catch (err) {
+        releaseWakeLock();
         showStatus('❌ Mikrofon-Zugriff fehlgeschlagen: ' + err.message, 'error', 'recordStatus');
     }
 }
@@ -833,6 +882,7 @@ function stopRecording() {
     if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
         state.mediaRecorder.stop();
         stopRecTimer();
+        releaseWakeLock(); // Allow screen to sleep again
 
         document.getElementById('stopRecBtn').style.display = 'none';
         document.getElementById('recIndicator').classList.remove('show');
@@ -843,15 +893,43 @@ function stopRecording() {
 async function processRecording() {
     const durationSeconds = getRecDurationSeconds();
 
+    // Check if we have audio data
+    if (state.audioChunks.length === 0) {
+        showStatus('⚠️ Keine Aufnahme gefunden. Bitte nochmal versuchen.', 'warning', 'recordStatus');
+        document.getElementById('startRecBtn').style.display = 'block';
+        return;
+    }
+
+    const blob = new Blob(state.audioChunks, { type: state.mediaRecorder?.mimeType || 'audio/webm' });
+    
+    // Check minimum size (corrupt/empty files are usually < 1KB)
+    if (blob.size < 1000) {
+        showStatus('⚠️ Aufnahme zu kurz oder leer. Bitte nochmal versuchen.', 'warning', 'recordStatus');
+        document.getElementById('startRecBtn').style.display = 'block';
+        return;
+    }
+
+    console.log('Audio blob size:', blob.size, 'bytes, duration:', durationSeconds, 's');
+
     try {
-        const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
         const fd = new FormData();
         fd.append('audio', blob, 'recording.webm');
 
+        showStatus('⏳ Wird ausgewertet...', 'info', 'recordStatus');
+
         const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+        
         if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Transkription fehlgeschlagen');
+            // Try to parse error as JSON, fallback to status text
+            let errMsg = `Server Fehler (${res.status})`;
+            try {
+                const errData = await res.json();
+                errMsg = errData.error || errData.message || errMsg;
+            } catch {
+                const errText = await res.text();
+                errMsg = errText.substring(0, 100) || errMsg;
+            }
+            throw new Error(errMsg);
         }
 
         const data = await res.json();
@@ -873,8 +951,8 @@ async function processRecording() {
         showFeedback(wpm, accuracy, state.referenceWords, recognized, rawTranscript);
 
     } catch (err) {
-        showStatus('❌ ' + err.message, 'error', 'recordStatus');
-        // Allow retry
+        console.error('Processing error:', err);
+        showStatus('❌ ' + err.message + ' – Nochmal versuchen?', 'error', 'recordStatus');
         document.getElementById('startRecBtn').style.display = 'block';
     }
 }
