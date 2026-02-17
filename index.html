@@ -390,27 +390,32 @@
             };
 
             recognition.onresult = (event) => {
-                console.log('onresult triggered, resultIndex:', event.resultIndex, 'total results:', event.results.length);
+                console.log('onresult - resultIndex:', event.resultIndex, 'total:', event.results.length);
                 
-                let interimTranscript = '';
+                // Get only the NEW results starting from resultIndex
+                let newFinal = '';
+                let interim = '';
                 
-                // Process ONLY NEW results starting from resultIndex
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript;
                     
                     if (event.results[i].isFinal) {
-                        // This is a NEW final result - add it to our permanent transcript
-                        console.log('FINAL result:', transcript);
-                        finalTranscript += transcript + ' ';
+                        console.log('NEW FINAL:', transcript);
+                        newFinal += transcript + ' ';
                     } else {
-                        // This is interim - only for display, don't save
-                        console.log('INTERIM result:', transcript);
-                        interimTranscript = transcript;
+                        // Interim results are cumulative within current segment
+                        console.log('INTERIM:', transcript);
+                        interim = transcript;
                     }
                 }
+                
+                // Add ONLY the new final text to our running transcript
+                if (newFinal) {
+                    finalTranscript += newFinal;
+                }
 
-                // Display: final + current interim
-                const displayText = finalTranscript + interimTranscript;
+                // Display: all final text + current interim
+                const displayText = finalTranscript + interim;
                 liveText.textContent = displayText || 'Spreche jetzt...';
                 liveText.classList.remove('empty');
                 
@@ -419,7 +424,7 @@
                 
                 // Debug info
                 debugInfo.style.display = 'block';
-                debugText.textContent = `Finale Wörter: ${recognizedWords.length} | Final: "${finalTranscript.substring(0, 50)}..."`;
+                debugText.textContent = `Finale Wörter: ${recognizedWords.length} | Text: "${finalTranscript.substring(0, 80)}..."`;
             };
 
             recognition.onerror = (event) => {
