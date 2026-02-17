@@ -243,6 +243,7 @@
             font-family: monospace;
             max-height: 200px;
             overflow-y: auto;
+            position: relative;
         }
 
         .debug-info .log-entry {
@@ -257,6 +258,48 @@
         .debug-info .timestamp {
             color: #6c757d;
             font-size: 0.9em;
+        }
+
+        .copy-log-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            min-width: auto;
+            margin: 0;
+        }
+
+        .copy-log-btn:hover {
+            background: #5568d3;
+        }
+
+        .copy-log-btn.copied {
+            background: #28a745;
+        }
+
+        .countdown {
+            font-size: 4em;
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .countdown.show {
+            display: block;
+            animation: countdownPulse 1s;
+        }
+
+        @keyframes countdownPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
         }
 
         @media (max-width: 600px) {
@@ -305,11 +348,14 @@
             
             <div id="recordingStatus"></div>
             
+            <div id="countdown" class="countdown"></div>
+            
             <h3 style="margin: 20px 0 10px 0; color: #495057; font-size: 1em;">Live-Erkennung:</h3>
             <div id="liveText" class="live-text empty">Warte auf Aufnahme...</div>
             
             <div class="debug-info" id="debugInfo">
                 <strong>🔍 Event Log:</strong>
+                <button class="copy-log-btn" id="copyLogBtn">📋 Kopieren</button>
                 <div id="debugLog"></div>
             </div>
         </div>
@@ -372,6 +418,8 @@
         const browserWarning = document.getElementById('browserWarning');
         const debugInfo = document.getElementById('debugInfo');
         const debugLog = document.getElementById('debugLog');
+        const copyLogBtn = document.getElementById('copyLogBtn');
+        const countdown = document.getElementById('countdown');
 
         // Event logging function
         function addLog(message, type = 'info') {
@@ -383,6 +431,29 @@
             debugLog.scrollTop = debugLog.scrollHeight;
             console.log(`[${timestamp}] ${message}`);
         }
+
+        // Copy log button
+        copyLogBtn.addEventListener('click', async () => {
+            const logText = Array.from(debugLog.children)
+                .map(entry => entry.textContent)
+                .join('\n');
+            
+            try {
+                await navigator.clipboard.writeText(logText);
+                copyLogBtn.textContent = '✅ Kopiert!';
+                copyLogBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyLogBtn.textContent = '📋 Kopieren';
+                    copyLogBtn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                copyLogBtn.textContent = '❌ Fehler';
+                setTimeout(() => {
+                    copyLogBtn.textContent = '📋 Kopieren';
+                }, 2000);
+            }
+        });
 
         // Check browser compatibility
         function checkBrowserCompatibility() {
@@ -523,7 +594,7 @@
         stopBtn.addEventListener('click', stopRecording);
         newTestBtn.addEventListener('click', resetTest);
 
-        function startRecording() {
+        async function startRecording() {
             const text = referenceTextArea.value.trim();
             if (!text) {
                 showStatus('⚠️ Bitte zuerst einen Referenztext eingeben!', 'warning', recordingStatus);
@@ -538,8 +609,6 @@
             referenceWords = normalizeText(text).split(/\s+/).filter(w => w.length > 0);
             recognizedWords = [];
             finalTranscript = '';  // Reset final transcript
-            startTime = Date.now();
-            isRecording = true;
 
             addLog(`📄 Reference text: ${referenceWords.length} words`);
 
@@ -549,6 +618,23 @@
 
             startBtn.style.display = 'none';
             startBtn.disabled = true;
+
+            // Show countdown
+            countdown.classList.add('show');
+            for (let i = 3; i > 0; i--) {
+                countdown.textContent = i;
+                addLog(`⏱️ Countdown: ${i}`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            countdown.textContent = 'LOS!';
+            addLog('🎤 GO! Start speaking now!');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            countdown.classList.remove('show');
+
+            // Now actually start recording
+            startTime = Date.now();
+            isRecording = true;
+
             stopBtn.style.display = 'inline-block';
             stopBtn.classList.add('recording');
 
