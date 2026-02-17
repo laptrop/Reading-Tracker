@@ -5,7 +5,7 @@ Eine App zum Tracken der Lesegeschwindigkeit und -genauigkeit mit Spracherkennun
 ## Funktionen
 
 - ✅ Text-Eingabe (manuell oder per Foto mit OCR)
-- ✅ Echtzeit-Spracherkennung
+- ✅ Spracherkennung
 - ✅ Automatische Berechnung von Geschwindigkeit & Genauigkeit
 - ✅ Personalisierte Verbesserungstipps
 - ✅ Mobile-optimiert
