@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Reading speed tracker with Whisper API",
   "private": true,
+  "engines": {
+    "node": ">=18.x"
+  },
   "dependencies": {
     "formidable": "^3.5.1",
     "node-fetch": "^2.7.0",
