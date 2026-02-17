@@ -68,7 +68,7 @@ export default async function handler(req, res) {
               content: [
                 {
                   type: 'text',
-                  text: 'Extrahiere den gesamten Text aus diesem Bild. Gib NUR den reinen Text zurück, ohne zusätzliche Erklärungen oder Formatierung. Wenn es ein Buch oder gedruckter Text ist, transkribiere ihn Wort für Wort genau so wie er im Bild steht.'
+                  text: `Extrahiere NUR den Hauptfließtext aus diesem Bild. Ignoriere dabei: Seitenzahlen, Kapitelüberschriften, Bildunterschriften, Kopfzeilen, Fußzeilen und alle Texte die nicht zum eigentlichen Haupttext gehören. Gib ausschließlich den reinen Fließtext zurück, ohne Erklärungen oder Formatierung. Behalte Zeilenumbrüche nur bei echten Absätzen bei.`
                 },
                 {
                   type: 'image_url',
