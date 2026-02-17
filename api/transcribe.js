@@ -54,6 +54,8 @@ export default async function handler(req, res) {
     });
     formData.append('model', 'whisper-1');
     formData.append('language', 'de'); // German language
+    // Hint to Whisper to preserve reading errors - don't autocorrect
+    formData.append('prompt', 'Ein Kind liest einen Text vor. Transkribiere exakt was gesagt wird, auch wenn es Lesefehler, Versprecher oder falsche Wörter gibt. Korrigiere nichts.');
 
     // Call Whisper API
     console.log('Calling Whisper API...');
