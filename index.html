@@ -497,6 +497,31 @@
 
         <div id="fbMessage" class="status info"></div>
 
+        <!-- Debug: show both texts to understand accuracy issues -->
+        <details style="margin-top:16px;">
+            <summary style="cursor:pointer; color:#667eea; font-size:0.9em; font-weight:600;">
+                🔍 Vergleich anzeigen
+            </summary>
+            <div style="margin-top:12px; display:grid; gap:10px;">
+                <div>
+                    <div style="font-size:0.8em; color:#6c757d; margin-bottom:4px;">
+                        📄 Referenztext (normalisiert):
+                    </div>
+                    <div id="fbRefText" style="background:#f8f9fa; padding:10px; border-radius:8px;
+                        font-size:0.85em; color:#495057; max-height:120px; overflow-y:auto;
+                        line-height:1.6; border:1px solid #dee2e6;"></div>
+                </div>
+                <div>
+                    <div style="font-size:0.8em; color:#6c757d; margin-bottom:4px;">
+                        🎤 Erkannter Text (Whisper):
+                    </div>
+                    <div id="fbTranscript" style="background:#f8f9fa; padding:10px; border-radius:8px;
+                        font-size:0.85em; color:#495057; max-height:120px; overflow-y:auto;
+                        line-height:1.6; border:1px solid #dee2e6;"></div>
+                </div>
+            </div>
+        </details>
+
         <button class="btn btn-primary" onclick="nextPage()" style="margin-top:8px">
             📖 Nächste Seite →
         </button>
@@ -830,7 +855,8 @@ async function processRecording() {
         }
 
         const data = await res.json();
-        const recognized = normalizeText(data.text).split(/\s+/).filter(w => w.length > 0);
+        const rawTranscript = data.text.trim();
+        const recognized = normalizeText(rawTranscript).split(/\s+/).filter(w => w.length > 0);
 
         const wpm = Math.round(recognized.length / (durationSeconds / 60));
         const accuracy = calculateAccuracy(state.referenceWords, recognized);
@@ -844,7 +870,7 @@ async function processRecording() {
             wordCount: state.referenceWords.length
         });
 
-        showFeedback(wpm, accuracy);
+        showFeedback(wpm, accuracy, state.referenceWords, recognized, rawTranscript);
 
     } catch (err) {
         showStatus('❌ ' + err.message, 'error', 'recordStatus');
@@ -856,7 +882,7 @@ async function processRecording() {
 // ══════════════════════════════════
 // MINI FEEDBACK
 // ══════════════════════════════════
-function showFeedback(wpm, accuracy) {
+function showFeedback(wpm, accuracy, refWords, recWords, rawTranscript) {
     document.getElementById('feedbackPageBadge').textContent = `Seite ${state.currentPage}`;
     document.getElementById('feedbackTitle').textContent = `✅ Seite ${state.currentPage} geschafft!`;
     document.getElementById('fbWpm').textContent = wpm;
@@ -873,6 +899,10 @@ function showFeedback(wpm, accuracy) {
 
     document.getElementById('fbMessage').textContent = msg;
     document.getElementById('fbMessage').className = 'status ' + (accuracy >= 85 ? 'success' : 'info');
+
+    // Show comparison texts for debugging
+    document.getElementById('fbRefText').textContent = refWords.join(' ');
+    document.getElementById('fbTranscript').textContent = rawTranscript;
 
     showScreen('screenFeedback');
 }
@@ -955,7 +985,15 @@ function newSession() {
 function normalizeText(text) {
     return text
         .toLowerCase()
-        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'»«„"]/g, '')
+        // Normalize German umlauts (in case of encoding differences)
+        .replace(/ä/g, 'ä').replace(/ö/g, 'ö').replace(/ü/g, 'ü')
+        .replace(/Ä/g, 'ä').replace(/Ö/g, 'ö').replace(/Ü/g, 'ü')
+        .replace(/ß/g, 'ss')
+        // Remove all punctuation and special characters
+        .replace(/[.,\/#!$%\^&\*;:{}=_`~()?"'»«„"\-–—]/g, ' ')
+        // Remove line breaks and tabs (treat as spaces)
+        .replace(/[\r\n\t]/g, ' ')
+        // Normalize multiple spaces
         .replace(/\s+/g, ' ')
         .trim();
 }
