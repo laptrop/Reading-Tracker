@@ -4,18 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lesetrainer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
     <style>
+        :root {
+            --bg:        #0f1923;
+            --surface:   #1a2535;
+            --surface2:  #243044;
+            --border:    #2e3d54;
+            --accent:    #f5a623;
+            --accent2:   #e8892a;
+            --green:     #2dd4a0;
+            --red:       #f06464;
+            --blue:      #5b9cf6;
+            --muted:     #94a3b8;
+            --text:      #e8edf5;
+            --text2:     #b8c4d4;
+            --radius:    16px;
+            --radius-sm: 10px;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg);
             min-height: 100vh;
             padding: 16px;
+            color: var(--text);
         }
 
         .container {
-            max-width: 600px;
+            max-width: 480px;
             margin: 0 auto;
         }
 
@@ -25,110 +46,139 @@
 
         /* ── CARDS ── */
         .card {
-            background: white;
-            border-radius: 20px;
-            padding: 28px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 14px;
+            border: 1px solid var(--border);
         }
 
         .card h1 {
-            font-size: 1.8em;
-            color: #667eea;
+            font-size: 2em;
+            font-weight: 900;
+            color: var(--text);
             text-align: center;
-            margin-bottom: 8px;
+            letter-spacing: -0.5px;
         }
 
         .card h2 {
-            font-size: 1.2em;
-            color: #495057;
+            font-size: 1em;
+            font-weight: 700;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
             margin-bottom: 16px;
         }
 
         .subtitle {
             text-align: center;
-            color: #6c757d;
+            color: var(--muted);
             margin-bottom: 28px;
             font-size: 0.95em;
         }
 
         /* ── BUTTONS ── */
         .btn {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             width: 100%;
-            padding: 16px;
-            font-size: 1.1em;
-            font-weight: 600;
+            padding: 15px 20px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1em;
+            font-weight: 700;
             border: none;
-            border-radius: 12px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            transition: all 0.2s;
-            margin-bottom: 12px;
-            text-align: center;
+            transition: all 0.18s;
+            margin-bottom: 10px;
         }
-
         .btn:last-child { margin-bottom: 0; }
 
-        .btn-primary { background: #667eea; color: white; }
-        .btn-primary:hover:not(:disabled) { background: #5568d3; transform: translateY(-1px); }
-
-        .btn-success { background: #28a745; color: white; }
-        .btn-success:hover:not(:disabled) { background: #218838; transform: translateY(-1px); }
-
-        .btn-danger { background: #dc3545; color: white; }
-        .btn-danger:hover:not(:disabled) { background: #c82333; }
-
-        .btn-outline {
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
+        .btn-primary {
+            background: var(--accent);
+            color: #0f1923;
         }
-        .btn-outline:hover { background: #f0f2ff; }
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent2);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(245, 166, 35, 0.35);
+        }
 
-        .btn-secondary { background: #6c757d; color: white; }
-        .btn-secondary:hover { background: #5a6268; }
+        .btn-success {
+            background: var(--green);
+            color: #0f1923;
+        }
+        .btn-success:hover:not(:disabled) {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
 
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-danger {
+            background: var(--red);
+            color: white;
+        }
+        .btn-danger:hover:not(:disabled) {
+            filter: brightness(1.1);
+        }
+
+        .btn-ghost {
+            background: var(--surface2);
+            color: var(--text2);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover:not(:disabled) {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
 
         /* ── STATUS ── */
         .status {
             padding: 12px 16px;
-            border-radius: 10px;
-            margin: 12px 0;
-            font-weight: 500;
-            font-size: 0.95em;
+            border-radius: var(--radius-sm);
+            margin: 10px 0;
+            font-weight: 600;
+            font-size: 0.9em;
         }
-        .status.info { background: #d1ecf1; color: #0c5460; }
-        .status.success { background: #d4edda; color: #155724; }
-        .status.error { background: #f8d7da; color: #721c24; }
-        .status.warning { background: #fff3cd; color: #856404; }
+        .status.info    { background: rgba(91,156,246,0.15); color: var(--blue); }
+        .status.success { background: rgba(45,212,160,0.15); color: var(--green); }
+        .status.error   { background: rgba(240,100,100,0.15); color: var(--red); }
+        .status.warning { background: rgba(245,166,35,0.15);  color: var(--accent); }
 
         /* ── SESSION HEADER ── */
         .session-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: white;
-            border-radius: 14px;
-            padding: 14px 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: var(--surface);
+            border-radius: var(--radius-sm);
+            padding: 12px 18px;
+            margin-bottom: 14px;
+            border: 1px solid var(--border);
         }
 
-        .session-header .page-badge {
-            background: #667eea;
-            color: white;
-            padding: 6px 14px;
+        .page-badge {
+            background: var(--accent);
+            color: #0f1923;
+            padding: 5px 14px;
             border-radius: 20px;
-            font-weight: 600;
-            font-size: 0.9em;
+            font-weight: 800;
+            font-size: 0.85em;
+            letter-spacing: 0.3px;
         }
 
-        .session-header .session-timer {
+        .session-timer {
             font-size: 1.1em;
-            font-weight: 600;
-            color: #495057;
-            font-family: monospace;
+            font-weight: 700;
+            color: var(--text2);
+            font-family: 'Courier New', monospace;
         }
 
         /* ── PHOTO UPLOAD ── */
@@ -136,48 +186,67 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
 
         .photo-btn {
             padding: 20px 12px;
-            border: 2px dashed #dee2e6;
-            border-radius: 12px;
-            background: #f8f9fa;
+            border: 1.5px dashed var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface2);
             cursor: pointer;
             text-align: center;
-            transition: all 0.2s;
+            transition: all 0.18s;
+            font-family: 'Nunito', sans-serif;
             font-size: 0.9em;
-            color: #495057;
+            font-weight: 600;
+            color: var(--text2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }
-
-        .photo-btn:hover { border-color: #667eea; background: #f0f2ff; }
-        .photo-btn .icon { font-size: 2em; display: block; margin-bottom: 6px; }
+        .photo-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(245,166,35,0.08);
+        }
+        .photo-btn svg { width: 28px; height: 28px; }
 
         .preview-img {
             width: 100%;
             max-height: 200px;
             object-fit: cover;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
             margin: 12px 0;
             display: none;
+            border: 1px solid var(--border);
         }
 
         textarea {
             width: 100%;
             min-height: 120px;
             padding: 14px;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
+            background: var(--surface2);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
             font-size: 0.95em;
-            font-family: inherit;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 600;
+            color: var(--text);
             resize: vertical;
             transition: border-color 0.2s;
         }
-        textarea:focus { outline: none; border-color: #667eea; }
-        textarea.ocr-done { border-color: #28a745; background: #f0fff4; }
+        textarea::placeholder { color: var(--muted); }
+        textarea:focus { outline: none; border-color: var(--accent); }
+        textarea.ocr-done { border-color: var(--green); }
 
-        .word-count { color: #6c757d; font-size: 0.85em; margin-top: 6px; }
+        .word-count {
+            color: var(--muted);
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-top: 6px;
+        }
 
         /* ── RECORDING ── */
         .recording-indicator {
@@ -185,19 +254,21 @@
             align-items: center;
             gap: 12px;
             padding: 14px 16px;
-            background: #fff3cd;
-            border-radius: 10px;
+            background: rgba(240,100,100,0.1);
+            border: 1px solid rgba(240,100,100,0.3);
+            border-radius: var(--radius-sm);
             margin: 12px 0;
         }
         .recording-indicator.show { display: flex; }
 
         .rec-dot {
-            width: 12px; height: 12px;
-            background: #dc3545;
+            width: 10px; height: 10px;
+            background: var(--red);
             border-radius: 50%;
             animation: blink 1s infinite;
             flex-shrink: 0;
         }
+        .rec-label { font-weight: 700; font-size: 0.9em; color: var(--red); }
 
         @keyframes blink {
             0%, 100% { opacity: 1; }
@@ -205,10 +276,10 @@
         }
 
         .rec-timer {
-            font-size: 1.2em;
-            font-weight: bold;
-            font-family: monospace;
-            color: #495057;
+            font-size: 1.1em;
+            font-weight: 800;
+            font-family: 'Courier New', monospace;
+            color: var(--text);
             margin-left: auto;
         }
 
@@ -217,28 +288,33 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(102, 126, 234, 0.92);
+            background: rgba(15, 25, 35, 0.96);
             z-index: 100;
             align-items: center;
             justify-content: center;
             flex-direction: column;
-            color: white;
         }
         .countdown-overlay.show { display: flex; }
         .countdown-number {
-            font-size: 8em;
-            font-weight: bold;
+            font-size: 9em;
+            font-weight: 900;
+            color: var(--accent);
             line-height: 1;
-            animation: countPulse 1s ease-in-out;
+            animation: countPulse 0.9s ease-out;
         }
-        .countdown-label { font-size: 1.4em; margin-top: 16px; opacity: 0.9; }
-
+        .countdown-label {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--muted);
+            margin-top: 16px;
+            letter-spacing: 1px;
+        }
         @keyframes countPulse {
-            0% { transform: scale(1.4); opacity: 0; }
+            0% { transform: scale(1.5); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
         }
 
-        /* ── MINI FEEDBACK ── */
+        /* ── MINI FEEDBACK METRICS ── */
         .mini-feedback {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -247,80 +323,82 @@
         }
 
         .mini-metric {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 16px;
+            background: var(--surface2);
+            border-radius: var(--radius-sm);
+            padding: 18px;
             text-align: center;
-            border-left: 4px solid #667eea;
+            border: 1px solid var(--border);
         }
-
         .mini-metric .val {
-            font-size: 2em;
-            font-weight: bold;
-            color: #495057;
+            font-size: 2.4em;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: -1px;
         }
-
         .mini-metric .lbl {
-            font-size: 0.8em;
-            color: #6c757d;
+            font-size: 0.75em;
+            font-weight: 700;
+            color: var(--muted);
             margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         /* ── SESSION SUMMARY ── */
         .summary-hero {
             text-align: center;
-            padding: 20px 0;
+            padding: 16px 0 24px;
         }
-
-        .summary-emoji { font-size: 4em; }
-
+        .summary-emoji { font-size: 4em; line-height: 1; }
         .summary-message {
-            font-size: 1.3em;
-            font-weight: bold;
-            color: #495057;
+            font-size: 1.6em;
+            font-weight: 900;
+            color: var(--text);
             margin: 12px 0 6px;
+            letter-spacing: -0.5px;
         }
-
-        .summary-sub {
-            color: #6c757d;
-            font-size: 0.95em;
-        }
+        .summary-sub { color: var(--muted); font-size: 0.9em; font-weight: 600; }
 
         .summary-stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 10px;
             margin: 20px 0;
         }
 
         .stat-box {
-            background: #f8f9fa;
-            border-radius: 12px;
+            background: var(--surface2);
+            border-radius: var(--radius-sm);
             padding: 18px;
             text-align: center;
+            border: 1px solid var(--border);
         }
-
         .stat-box .val {
             font-size: 2.2em;
-            font-weight: bold;
-            color: #667eea;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: -1px;
         }
-
         .stat-box .lbl {
-            font-size: 0.8em;
-            color: #6c757d;
+            font-size: 0.75em;
+            font-weight: 700;
+            color: var(--muted);
             margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .pages-list {
-            border-top: 2px solid #e9ecef;
+            border-top: 1px solid var(--border);
             padding-top: 16px;
             margin-top: 4px;
         }
-
         .pages-list h3 {
-            color: #495057;
-            font-size: 0.95em;
+            font-size: 0.8em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
             margin-bottom: 12px;
         }
 
@@ -328,49 +406,129 @@
             display: flex;
             align-items: center;
             padding: 10px 0;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border);
             gap: 12px;
         }
-
         .page-row:last-child { border-bottom: none; }
 
         .page-num {
-            background: #667eea;
-            color: white;
+            background: var(--accent);
+            color: #0f1923;
             border-radius: 50%;
             width: 28px; height: 28px;
             display: flex; align-items: center; justify-content: center;
             font-size: 0.85em;
-            font-weight: bold;
+            font-weight: 800;
             flex-shrink: 0;
         }
 
         .page-stats {
             flex: 1;
             display: flex;
-            gap: 16px;
+            gap: 14px;
         }
+        .page-stat { font-size: 0.88em; font-weight: 700; color: var(--text2); }
+        .page-stat strong { color: var(--text); }
 
-        .page-stat {
-            font-size: 0.9em;
-            color: #495057;
-        }
-
-        .page-stat strong { color: #667eea; }
-
-        /* ── SCREEN: START ── */
-        .start-icon {
-            font-size: 5em;
+        /* ── START SCREEN ── */
+        .start-logo {
             text-align: center;
-            margin: 10px 0 20px;
+            margin: 16px 0 28px;
         }
+        .start-logo svg {
+            width: 72px; height: 72px;
+            color: var(--accent);
+        }
+
+        /* ── DIVIDER ── */
+        .divider {
+            border: none;
+            border-top: 1px dashed var(--border);
+            margin: 20px 0;
+        }
+
+        .section-label {
+            font-size: 0.8em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        /* ── DETAILS / COLLAPSE ── */
+        details summary {
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 700;
+            color: var(--accent);
+            padding: 6px 0;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        details summary::-webkit-details-marker { display: none; }
+        details summary::before {
+            content: '▶';
+            font-size: 0.7em;
+            transition: transform 0.2s;
+        }
+        details[open] summary::before { transform: rotate(90deg); }
+
+        /* ── WORD VIEW ── */
+        .word-view {
+            margin-top: 12px;
+            line-height: 2.4;
+            font-size: 0.95em;
+            background: var(--surface2);
+            padding: 14px;
+            border-radius: var(--radius-sm);
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+        .word-correct   { color: var(--green);   font-weight: 700; margin-right: 5px; }
+        .word-wrong     { color: var(--red);      font-weight: 700; margin-right: 5px; }
+        .word-omitted   { color: var(--muted);    font-weight: 600; margin-right: 5px; text-decoration: line-through; }
+        .word-added     { color: var(--blue);     font-weight: 600; margin-right: 5px; font-style: italic; }
+
+        .legend {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .legend span {
+            font-size: 0.75em;
+            font-weight: 700;
+        }
+
+        /* ── ERROR SUMMARY ── */
+        .error-pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        .pill {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 700;
+        }
+        .pill-green  { background: rgba(45,212,160,0.15); color: var(--green); }
+        .pill-red    { background: rgba(240,100,100,0.15); color: var(--red); }
+        .pill-grey   { background: rgba(148,163,184,0.15); color: var(--muted); }
+        .pill-blue   { background: rgba(91,156,246,0.15);  color: var(--blue); }
 
         /* ── MOBILE ── */
         @media (max-width: 480px) {
             body { padding: 10px; }
             .card { padding: 20px; }
-            .btn { font-size: 1em; padding: 14px; }
-            .countdown-number { font-size: 6em; }
+            .btn { font-size: 0.95em; padding: 14px; }
+            .countdown-number { font-size: 7em; }
         }
     </style>
 </head>
@@ -390,12 +548,15 @@
      SCREEN 1: START
 ══════════════════════════════════ -->
 <div class="screen active" id="screenStart">
-    <div class="card">
-        <div class="start-icon">📚</div>
+    <div class="card" style="margin-top: 32px;">
+        <div class="start-logo">
+            <i data-lucide="book-open" style="width:72px;height:72px;color:var(--accent);"></i>
+        </div>
         <h1>Lesetrainer</h1>
-        <p class="subtitle">Lesen üben & Fortschritte messen</p>
-        <button class="btn btn-primary" onclick="startSession()">
-            ▶️ Session starten
+        <p class="subtitle" style="margin-top:8px;">Lesen üben & Fortschritte messen</p>
+        <button class="btn btn-primary" onclick="startSession()" style="margin-top:8px;">
+            <i data-lucide="play-circle"></i>
+            Session starten
         </button>
     </div>
 </div>
@@ -412,14 +573,14 @@
 
     <!-- Step A: Foto -->
     <div class="card" id="stepPhoto">
-        <h2>📷 Schritt 1: Text aufnehmen</h2>
+        <h2>Schritt 1 — Text erfassen</h2>
         <div class="photo-buttons">
             <label class="photo-btn" for="cameraInput">
-                <span class="icon">📸</span>
+                <i data-lucide="camera"></i>
                 Kamera
             </label>
             <label class="photo-btn" for="galleryInput">
-                <span class="icon">🖼️</span>
+                <i data-lucide="image"></i>
                 Galerie
             </label>
         </div>
@@ -429,43 +590,46 @@
         <div id="ocrStatus"></div>
         <img id="previewImg" class="preview-img">
 
+        <div class="section-label" style="margin-top:14px;">Referenztext</div>
         <textarea id="referenceText"
             placeholder="Text erscheint hier nach dem Foto... oder direkt eintippen"></textarea>
         <div class="word-count" id="wordCount">0 Wörter</div>
 
-        <button class="btn btn-primary" id="toRecordBtn" onclick="goToRecord()" disabled>
-            🎤 Aufnahme starten →
+        <button class="btn btn-primary" id="toRecordBtn" onclick="goToRecord()" disabled style="margin-top:14px;">
+            <i data-lucide="mic"></i>
+            Aufnahme starten
         </button>
-        <button class="btn btn-outline" onclick="goToRecord()">
-            Ohne Foto → Text eintippen & weiter
+        <button class="btn btn-ghost" onclick="goToRecord()">
+            Ohne Foto weitermachen
         </button>
     </div>
 
     <!-- Step B: Aufnehmen -->
     <div class="card" id="stepRecord" style="display:none">
-        <h2>🎤 Schritt 2: Vorlesen</h2>
+        <h2>Schritt 2 — Vorlesen</h2>
 
         <div class="recording-indicator" id="recIndicator">
             <div class="rec-dot"></div>
-            <span>Aufnahme läuft</span>
+            <span class="rec-label">Aufnahme läuft</span>
             <span class="rec-timer" id="recTimer">00:00</span>
         </div>
 
         <div id="recordStatus"></div>
 
-        <div style="display:flex; gap:10px; justify-content:center; margin-top: 8px;">
-            <button class="btn btn-success" id="startRecBtn" onclick="startRecording()"
-                style="flex:1">
-                ▶️ Los lesen!
+        <div style="display:flex; gap:10px; margin-top:8px;">
+            <button class="btn btn-success" id="startRecBtn" onclick="startRecording()" style="flex:1">
+                <i data-lucide="mic"></i>
+                Los lesen!
             </button>
-            <button class="btn btn-danger" id="stopRecBtn" onclick="stopRecording()"
-                style="flex:1; display:none">
-                ⏹️ Fertig
+            <button class="btn btn-danger" id="stopRecBtn" onclick="stopRecording()" style="flex:1; display:none">
+                <i data-lucide="square"></i>
+                Fertig
             </button>
         </div>
 
-        <button class="btn btn-outline" onclick="backToPhoto()" style="margin-top:8px">
-            ← Zurück
+        <button class="btn btn-ghost" onclick="backToPhoto()" style="margin-top:8px">
+            <i data-lucide="arrow-left"></i>
+            Zurück
         </button>
     </div>
 
@@ -482,12 +646,12 @@
     </div>
 
     <div class="card">
-        <h2 id="feedbackTitle">✅ Seite 1 geschafft!</h2>
+        <h2 id="feedbackTitle">Seite 1 geschafft!</h2>
 
         <div class="mini-feedback">
             <div class="mini-metric">
                 <div class="val" id="fbWpm">-</div>
-                <div class="lbl">Wörter/Min</div>
+                <div class="lbl">Wörter / Min</div>
             </div>
             <div class="mini-metric">
                 <div class="val" id="fbAccuracy">-</div>
@@ -497,39 +661,32 @@
 
         <div id="fbMessage" class="status info"></div>
 
-        <!-- Error summary - always visible, compact -->
-        <div id="fbErrorSummary" style="display:none; margin-top:12px;
-            background:#f8f9fa; border-radius:10px; padding:12px 16px;
-            font-size:0.9em; color:#495057;">
-        </div>
+        <div id="fbErrorSummary" class="error-pills" style="display:none;"></div>
 
-        <!-- Detailed word-by-word view - collapsible -->
-        <details id="fbDetails" style="margin-top:12px;">
-            <summary style="cursor:pointer; color:#667eea; font-size:0.9em;
-                font-weight:600; padding:4px 0;">
-                🔍 Wort-für-Wort Analyse
-            </summary>
-            <div id="fbWordView" style="margin-top:12px; line-height:2.2;
-                font-size:0.95em; background:#f8f9fa; padding:14px;
-                border-radius:10px; max-height:250px; overflow-y:auto;">
-            </div>
-            <div style="margin-top:8px; font-size:0.78em; color:#6c757d;
-                display:flex; gap:14px; flex-wrap:wrap;">
-                <span>🟢 richtig</span>
-                <span>🔴 falsch/ersetzt</span>
-                <span>⚫ ausgelassen</span>
-                <span>🔵 hinzugefügt</span>
+        <details id="fbDetails" style="margin-top:14px;">
+            <summary>Wort-für-Wort Analyse</summary>
+            <div id="fbWordView" class="word-view"></div>
+            <div class="legend" style="margin-top:10px;">
+                <span style="color:var(--green);">● richtig</span>
+                <span style="color:var(--red);">● falsch</span>
+                <span style="color:var(--muted);">● ausgelassen</span>
+                <span style="color:var(--blue);">● hinzugefügt</span>
             </div>
         </details>
 
-        <button class="btn btn-primary" onclick="nextPage()" style="margin-top:8px">
-            📖 Nächste Seite →
+        <hr class="divider" style="margin-top:16px;">
+
+        <button class="btn btn-primary" onclick="nextPage()">
+            <i data-lucide="arrow-right"></i>
+            Nächste Seite
         </button>
-        <button class="btn btn-outline" onclick="retryPage()">
-            🔄 Nochmal lesen
+        <button class="btn btn-ghost" onclick="retryPage()">
+            <i data-lucide="rotate-ccw"></i>
+            Nochmal lesen
         </button>
-        <button class="btn btn-outline" onclick="endSession()">
-            🏁 Session beenden
+        <button class="btn btn-ghost" onclick="endSession()">
+            <i data-lucide="flag"></i>
+            Session beenden
         </button>
     </div>
 
@@ -549,7 +706,7 @@
         <div class="summary-stats">
             <div class="stat-box">
                 <div class="val" id="sumPages">-</div>
-                <div class="lbl">Seiten gelesen</div>
+                <div class="lbl">Seiten</div>
             </div>
             <div class="stat-box">
                 <div class="val" id="sumDuration">-</div>
@@ -557,7 +714,7 @@
             </div>
             <div class="stat-box">
                 <div class="val" id="sumWpm">-</div>
-                <div class="lbl">Ø Wörter/Min</div>
+                <div class="lbl">Ø W / Min</div>
             </div>
             <div class="stat-box">
                 <div class="val" id="sumAccuracy">-</div>
@@ -566,17 +723,18 @@
         </div>
 
         <div class="pages-list">
-            <h3>📄 Pro Seite:</h3>
+            <h3>Pro Seite</h3>
             <div id="pagesList"></div>
         </div>
 
-        <div class="pages-list" id="frequentErrorsSection" style="display:none;">
-            <h3>🔴 Häufige Fehler:</h3>
+        <div class="pages-list" id="frequentErrorsSection" style="display:none; margin-top:16px;">
+            <h3>Häufige Fehler</h3>
             <div id="frequentErrorsList"></div>
         </div>
 
         <button class="btn btn-primary" onclick="newSession()" style="margin-top:20px">
-            🔄 Neue Session
+            <i data-lucide="refresh-cw"></i>
+            Neue Session
         </button>
     </div>
 </div>
@@ -584,6 +742,12 @@
 </div><!-- /container -->
 
 <script>
+// Init Lucide icons after DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide) lucide.createIcons();
+});
+// Also init now in case DOM is already ready
+if (window.lucide) lucide.createIcons();
 // ══════════════════════════════════
 // STATE
 // ══════════════════════════════════
@@ -606,6 +770,7 @@ function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
+    if (window.lucide) lucide.createIcons();
 }
 
 // ══════════════════════════════════
@@ -1025,7 +1190,7 @@ async function processRecording() {
 // ══════════════════════════════════
 function showFeedback(wpm, accuracy, alignment) {
     document.getElementById('feedbackPageBadge').textContent = `Seite ${state.currentPage}`;
-    document.getElementById('feedbackTitle').textContent = `✅ Seite ${state.currentPage} geschafft!`;
+    document.getElementById('feedbackTitle').textContent = `Seite ${state.currentPage} geschafft!`;
     document.getElementById('fbWpm').textContent = wpm;
     document.getElementById('fbAccuracy').textContent = accuracy + '%';
 
@@ -1038,48 +1203,47 @@ function showFeedback(wpm, accuracy, alignment) {
 
     // Motivational message
     let msg = '';
-    if (accuracy >= 95) msg = '🌟 Fantastisch! Fast fehlerfrei!';
-    else if (accuracy >= 85) msg = '👍 Sehr gut! Weiter so!';
-    else if (accuracy >= 70) msg = '💪 Gut gemacht! Üb weiter!';
-    else msg = '📖 Weiterlesen macht besser!';
-    if (wpm > 150) msg += ' ⚡ Super schnell!';
+    if (accuracy >= 95) msg = 'Fantastisch! Fast fehlerfrei!';
+    else if (accuracy >= 85) msg = 'Sehr gut! Weiter so!';
+    else if (accuracy >= 70) msg = 'Gut gemacht! Üb weiter!';
+    else msg = 'Weiterlesen macht besser!';
+    if (wpm > 150) msg += ' Super schnell!';
 
     document.getElementById('fbMessage').textContent = msg;
     document.getElementById('fbMessage').className = 'status ' + (accuracy >= 85 ? 'success' : 'info');
 
-    // Error summary (compact, always visible if errors exist)
+    // Error pills
     const errSummary = document.getElementById('fbErrorSummary');
-    if (totalErrors > 0 || additions > 0) {
-        const parts = [];
-        if (correct > 0)       parts.push(`✅ ${correct} richtig`);
-        if (substitutions > 0) parts.push(`🔴 ${substitutions} falsch`);
-        if (omissions > 0)     parts.push(`⚫ ${omissions} ausgelassen`);
-        if (additions > 0)     parts.push(`🔵 ${additions} hinzugefügt`);
-        errSummary.innerHTML = parts.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
-        errSummary.style.display = 'block';
+    if (correct > 0 || totalErrors > 0 || additions > 0) {
+        const pills = [];
+        if (correct > 0)       pills.push(`<span class="pill pill-green">${correct} richtig</span>`);
+        if (substitutions > 0) pills.push(`<span class="pill pill-red">${substitutions} falsch</span>`);
+        if (omissions > 0)     pills.push(`<span class="pill pill-grey">${omissions} ausgelassen</span>`);
+        if (additions > 0)     pills.push(`<span class="pill pill-blue">${additions} hinzugefügt</span>`);
+        errSummary.innerHTML = pills.join('');
+        errSummary.style.display = 'flex';
     } else {
         errSummary.style.display = 'none';
     }
 
-    // Word-by-word view
+    // Word-by-word view with new CSS classes
     const wordView = document.getElementById('fbWordView');
     wordView.innerHTML = alignment.map(a => {
         switch(a.type) {
             case 'correct':
-                return `<span style="color:#28a745; margin-right:6px;">${a.ref}</span>`;
+                return `<span class="word-correct">${a.ref}</span>`;
             case 'substitution':
-                return `<span style="color:#dc3545; margin-right:6px;" title="gesagt: ${a.rec}">
-                    <s style="opacity:0.6">${a.ref}</s>→${a.rec}</span>`;
+                return `<span class="word-wrong" title="gesagt: ${a.rec}"><s>${a.ref}</s>→${a.rec}</span>`;
             case 'omission':
-                return `<span style="color:#6c757d; margin-right:6px; text-decoration:line-through;">[${a.ref}]</span>`;
+                return `<span class="word-omitted">[${a.ref}]</span>`;
             case 'addition':
-                return `<span style="color:#007bff; margin-right:6px; font-style:italic;">+${a.rec}</span>`;
-            default:
-                return '';
+                return `<span class="word-added">+${a.rec}</span>`;
+            default: return '';
         }
     }).join(' ');
 
     showScreen('screenFeedback');
+    if (window.lucide) lucide.createIcons();
 }
 
 // ══════════════════════════════════
