@@ -1559,6 +1559,7 @@ async function processRecording() {
 
         const data = await res.json();
         const rawTranscript = data.text.trim();
+        const wordTimings = data.words || [];  // [{word, start, end}, ...]
         const recognized = normalizeText(rawTranscript).split(/\s+/).filter(w => w.length > 0);
 
         const wpm = Math.round(recognized.length / (durationSeconds / 60));
@@ -1575,7 +1576,9 @@ async function processRecording() {
             duration: Math.round(durationSeconds),
             wordCount: state.referenceWords.length,
             alignment,
-            rawTranscript
+            rawTranscript,
+            wordTimings,   // [{word, start, end}] from Whisper verbose_json
+            referenceText: state.referenceWords.join(' '),  // normalized reference
         });
 
         showFeedback(wpm, accuracy, alignment);
@@ -1922,12 +1925,24 @@ function goToSmiley() {
         id: Date.now(),
         date: new Date().toISOString(),
         durationMin: Math.round(totalDurationMin),
-        pages: pages.length,
+        pageCount: pages.length,
         avgWpm,
         avgAccuracy,
         totalWords,
         topErrors,
         mood: null,
+        // Vollständige Seiten-Details für Lesefluss-Analyse:
+        pageDetails: pages.map(p => ({
+            page: p.page,
+            wpm: p.wpm,
+            accuracy: p.accuracy,
+            duration: p.duration,
+            wordCount: p.wordCount,
+            referenceText: p.referenceText || '',
+            rawTranscript: p.rawTranscript || '',
+            alignment: p.alignment || [],
+            wordTimings: p.wordTimings || [],
+        })),
     };
 
     // Reset smiley UI
@@ -2005,7 +2020,7 @@ function buildSessionHistory(sessions) {
                 <div class="session-pills">
                     <span class="pill pill-blue">${s.avgWpm} WPM</span>
                     <span class="pill pill-green">${s.avgAccuracy}%</span>
-                    <span class="pill pill-grey">${s.pages} S.</span>
+                    <span class="pill pill-grey">${s.pageCount ?? s.pages} S.</span>
                     <span class="pill pill-grey">${s.durationMin} min</span>
                 </div>
                 ${mood ? `<div class="session-mood">${mood}</div>` : ''}
