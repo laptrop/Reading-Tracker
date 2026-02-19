@@ -54,6 +54,8 @@ export default async function handler(req, res) {
     });
     formData.append('model', 'whisper-1');
     formData.append('language', 'de'); // German language
+    formData.append('response_format', 'verbose_json'); // Enables word-level timestamps
+    formData.append('timestamp_granularities[]', 'word'); // Word-level timestamps
     // Hint to Whisper to preserve reading errors and avoid hallucinations
     formData.append('prompt', 'Ein Kind liest einen deutschen Text vor. Transkribiere nur das Gesprochene, exakt wie es gesagt wird. Keine Korrekturen, keine Ergänzungen.');
 
@@ -114,6 +116,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       text: transcribedText,
       duration: result.duration,
+      words: result.words || [],  // [{word, start, end}, ...] for fluency analysis
     });
 
   } catch (error) {
