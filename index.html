@@ -670,7 +670,7 @@
             <span style="font-size:4em;display:block;margin-bottom:8px;">📖</span>
         </div>
         <h1>Lesetrainer</h1>
-        <p class="subtitle" style="margin-top:8px;">Lesen üben & Fortschritte messen</p>
+        <p class="subtitle" style="margin-top:8px;" id="startSubtitle">Lesen üben & Fortschritte messen</p>
         
         <!-- Profile Selection -->
         <div style="margin-bottom:20px;">
@@ -692,7 +692,7 @@
         </div>
         
         <button class="btn btn-primary" onclick="startSession()" id="startSessionBtn" disabled>
-            ▶ Session starten
+            ▶ Los geht's!
         </button>
         
         <!-- Dev Tools (versteckt, nur für Tests) -->
@@ -710,6 +710,10 @@
                 <button class="btn btn-ghost" onclick="exportData()" style="font-size:0.85em; padding:10px;">
                     💾 Daten exportieren (JSON)
                 </button>
+                <button class="btn btn-ghost" onclick="document.getElementById('importInput').click()" style="font-size:0.85em; padding:10px;">
+                    📂 Daten importieren (JSON)
+                </button>
+                <input type="file" id="importInput" accept=".json,application/json" style="display:none" onchange="importData(event)">
             </div>
         </details>
     </div>
@@ -722,6 +726,7 @@
 
     <div class="session-header">
         <span class="page-badge" id="pageBadge">Seite 1</span>
+        <span style="font-size:0.85em; font-weight:700; color:var(--muted);" id="sessionWordCounter">0 Wörter</span>
         <span class="session-timer" id="sessionTimer">00:00</span>
     </div>
 
@@ -792,6 +797,7 @@
 
     <div class="session-header">
         <span class="page-badge" id="feedbackPageBadge">Seite 1</span>
+        <span style="font-size:0.85em; font-weight:700; color:var(--muted);" id="feedbackWordCounter">0 Wörter</span>
         <span class="session-timer" id="feedbackTimer">00:00</span>
     </div>
 
@@ -1073,10 +1079,19 @@ function switchProfile() {
     const profileId = select.value;
     if (!profileId) {
         document.getElementById('startSessionBtn').disabled = true;
+        document.getElementById('startSubtitle').textContent = 'Lesen üben & Fortschritte messen';
         return;
     }
     setCurrentProfile(profileId);
     document.getElementById('startSessionBtn').disabled = false;
+    
+    // Personalized greeting
+    const profileName = loadProfiles().find(p => p.id === profileId)?.name || '';
+    if (profileName) {
+        document.getElementById('startSubtitle').textContent = `Heute liest ${profileName}! 📖`;
+        // Update smiley screen text
+        document.querySelector('#screenSmiley .subtitle').textContent = `${profileName}, wie hat dir das Lesen heute gefallen?`;
+    }
     
     // Reload navbar visibility based on new profile's data
     const sessions = loadSessions();
@@ -1099,6 +1114,15 @@ function populateProfileSelect() {
         ).join('');
     
     document.getElementById('startSessionBtn').disabled = !currentProfile;
+
+    // Set personalized greeting if a profile is already selected
+    if (currentProfile) {
+        const profileName = profiles.find(p => p.id === currentProfile)?.name || '';
+        if (profileName) {
+            document.getElementById('startSubtitle').textContent = `Heute liest ${profileName}! 📖`;
+            document.querySelector('#screenSmiley .subtitle').textContent = `${profileName}, wie hat dir das Lesen heute gefallen?`;
+        }
+    }
 }
 
 function showProfileManager() {
@@ -1303,16 +1327,29 @@ async function handleImage(file) {
     preview.src = URL.createObjectURL(file);
     preview.style.display = 'block';
 
-    showStatus('🔧 Bild wird verarbeitet...', 'info', 'ocrStatus');
+    showStatus('🔧 Bild wird vorbereitet...', 'info', 'ocrStatus');
 
     try {
         const compressed = await compressImage(file);
-        showStatus('📖 Text wird erkannt...', 'info', 'ocrStatus');
+        
+        // Animated loading messages
+        const ocrMessages = [
+            '📖 Ich lese das Buch...',
+            '🔍 Text wird erkannt...',
+            '✍️ Wörter werden entziffert...',
+        ];
+        let msgIdx = 0;
+        showStatus(ocrMessages[msgIdx], 'info', 'ocrStatus');
+        const msgInterval = setInterval(() => {
+            msgIdx = (msgIdx + 1) % ocrMessages.length;
+            showStatus(ocrMessages[msgIdx], 'info', 'ocrStatus');
+        }, 1200);
 
         const fd = new FormData();
         fd.append('image', compressed, 'image.jpg');
 
         const res = await fetch('/api/ocr', { method: 'POST', body: fd });
+        clearInterval(msgInterval);
         if (!res.ok) {
             const err = await res.json();
             throw new Error(err.details || err.error || 'OCR fehlgeschlagen');
@@ -1333,6 +1370,7 @@ async function handleImage(file) {
             showStatus('⚠️ Kein Text gefunden. Bitte nochmal versuchen oder manuell eingeben.', 'warning', 'ocrStatus');
         }
     } catch (err) {
+        clearInterval(msgInterval);
         showStatus('❌ ' + err.message, 'error', 'ocrStatus');
     }
 }
@@ -1581,6 +1619,12 @@ async function processRecording() {
             referenceText: state.referenceWords.join(' '),  // normalized reference
         });
 
+        // Update live word counter
+        const totalWords = state.pages.reduce((s, p) => s + (p.wordCount || 0), 0);
+        const counterText = `${totalWords} Wörter`;
+        document.getElementById('sessionWordCounter').textContent = counterText;
+        document.getElementById('feedbackWordCounter').textContent = counterText;
+
         showFeedback(wpm, accuracy, alignment);
 
     } catch (err) {
@@ -1607,10 +1651,12 @@ function showFeedback(wpm, accuracy, alignment) {
     const totalErrors   = substitutions + omissions;
 
     // Motivational message
+    const profileName = loadProfiles().find(p => p.id === getCurrentProfile())?.name || '';
+    const namePrefix = profileName ? `${profileName}, ` : '';
     let msg = '';
-    if (accuracy >= 95) msg = 'Fantastisch! Fast fehlerfrei!';
-    else if (accuracy >= 85) msg = 'Sehr gut! Weiter so!';
-    else if (accuracy >= 70) msg = 'Gut gemacht! Üb weiter!';
+    if (accuracy >= 95) msg = `${namePrefix}fantastisch! Fast fehlerfrei!`;
+    else if (accuracy >= 85) msg = `${namePrefix}sehr gut! Weiter so!`;
+    else if (accuracy >= 70) msg = `Gut gemacht${profileName ? ', ' + profileName : ''}! Üb weiter!`;
     else msg = 'Weiterlesen macht besser!';
     if (wpm > 150) msg += ' Super schnell!';
 
@@ -1747,6 +1793,9 @@ function startSession() {
     state.pages = [];
     startSessionTimer();
     loadPageScreen();
+    // Reset word counter
+    document.getElementById('sessionWordCounter').textContent = '0 Wörter';
+    document.getElementById('feedbackWordCounter').textContent = '0 Wörter';
     showScreen('screenPage');
     showNavbar(false); // Hide navbar during active session
 }
@@ -1763,15 +1812,17 @@ function buildSummary() {
     const avgAccuracy = Math.round(pages.reduce((s, p) => s + p.accuracy, 0) / pages.length);
 
     // Emoji & message based on performance
+    const profileName = loadProfiles().find(p => p.id === getCurrentProfile())?.name || '';
+    const nameSuffix = profileName ? `, ${profileName}` : '';
     let emoji, message, sub;
     if (avgAccuracy >= 95 && avgWpm >= 100) {
-        emoji = '🏆'; message = 'Unglaublich gut!';
+        emoji = '🏆'; message = `Unglaublich gut${nameSuffix}!`;
         sub = 'Ein wirklich beeindruckendes Ergebnis!';
     } else if (avgAccuracy >= 85) {
-        emoji = '⭐'; message = 'Super gemacht!';
+        emoji = '⭐'; message = `Super gemacht${nameSuffix}!`;
         sub = 'Du wirst von Mal zu Mal besser!';
     } else if (avgAccuracy >= 70) {
-        emoji = '💪'; message = 'Gut gelesen!';
+        emoji = '💪'; message = `Gut gelesen${nameSuffix}!`;
         sub = 'Mit jedem Üben wird es leichter!';
     } else {
         emoji = '📖'; message = 'Weiter üben!';
@@ -2256,11 +2307,80 @@ function exportData() {
     URL.revokeObjectURL(url);
 }
 
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (!Array.isArray(imported)) throw new Error('Ungültiges Format – Array erwartet');
+            
+            const profileName = loadProfiles().find(p => p.id === getCurrentProfile())?.name || 'Unbekannt';
+            const existing = loadSessions();
+            
+            // Merge: avoid duplicates by id
+            const existingIds = new Set(existing.map(s => s.id));
+            const newSessions = imported.filter(s => !existingIds.has(s.id));
+            const merged = [...existing, ...newSessions].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            const key = getSessionsKey();
+            localStorage.setItem(key, JSON.stringify(merged));
+            
+            // Reset file input
+            event.target.value = '';
+            
+            showNavbar(merged.length > 0);
+            alert(`✅ Import abgeschlossen!\n${newSessions.length} neue Sessions hinzugefügt (${imported.length - newSessions.length} Duplikate übersprungen)\nGesamt: ${merged.length} Sessions für "${profileName}"`);
+            
+            if (document.getElementById('screenStats').classList.contains('active')) {
+                buildStatsScreen();
+            }
+        } catch (err) {
+            alert('❌ Import fehlgeschlagen: ' + err.message);
+            event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+}
+
 // ══════════════════════════════════
 // HELPERS
 // ══════════════════════════════════
+// ── ZAHLEN-NORMALISIERUNG ──
+// Wandelt Ziffern in deutsche Wörter um, damit "2" und "zwei" als gleich gelten
+const ZAHLEN_MAP = {
+    '0': 'null', '1': 'ein', '2': 'zwei', '3': 'drei', '4': 'vier',
+    '5': 'fünf', '6': 'sechs', '7': 'sieben', '8': 'acht', '9': 'neun',
+    '10': 'zehn', '11': 'elf', '12': 'zwölf', '13': 'dreizehn',
+    '14': 'vierzehn', '15': 'fünfzehn', '16': 'sechzehn', '17': 'siebzehn',
+    '18': 'achtzehn', '19': 'neunzehn', '20': 'zwanzig', '30': 'dreißig',
+    '40': 'vierzig', '50': 'fünfzig', '60': 'sechzig', '70': 'siebzig',
+    '80': 'achtzig', '90': 'neunzig', '100': 'hundert', '1000': 'tausend'
+};
+
+const ORDINAL_MAP = {
+    '1': 'erste', '2': 'zweite', '3': 'dritte', '4': 'vierte', '5': 'fünfte',
+    '6': 'sechste', '7': 'siebte', '8': 'achte', '9': 'neunte', '10': 'zehnte',
+    '11': 'elfte', '12': 'zwölfte', '13': 'dreizehnte', '14': 'vierzehnte',
+    '15': 'fünfzehnte', '16': 'sechzehnte', '17': 'siebzehnte', '18': 'achtzehnte',
+    '19': 'neunzehnte', '20': 'zwanzigste'
+};
+
+function normalizeNumbers(text) {
+    // Ordinalzahlen zuerst: "1." → "erste" (nur wenn gefolgt von Leerzeichen oder Satzende)
+    text = text.replace(/\b(\d+)\.\s/g, (match, num) => {
+        return (ORDINAL_MAP[num] || num + '.') + ' ';
+    });
+    // Dann Kardinalzahlen: "2" → "zwei"
+    return text.replace(/\b(\d+)\b/g, (match) => {
+        return ZAHLEN_MAP[match] || match;
+    });
+}
+
 function normalizeText(text) {
-    return text
+    return normalizeNumbers(text)
         .toLowerCase()
         // Normalize German umlauts (in case of encoding differences)
         .replace(/ä/g, 'ä').replace(/ö/g, 'ö').replace(/ü/g, 'ü')
