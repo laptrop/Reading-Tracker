@@ -136,6 +136,16 @@
             color: var(--text);
         }
 
+        .btn-secondary {
+            background: #e8f4ff;
+            color: #2478cc;
+            border: 1.5px solid #a8d4f8;
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: #d0eaff;
+            color: #1a5fa8;
+        }
+
         .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
 
         /* ── STATUS ── */
@@ -726,6 +736,7 @@
 
     <div class="session-header">
         <span class="page-badge" id="pageBadge">Seite 1</span>
+        <span class="page-badge" id="attemptBadge" style="display:none; background:var(--blue, #4a9eff); margin-left:6px;"></span>
         <span style="font-size:0.85em; font-weight:700; color:var(--muted);" id="sessionWordCounter">0 Wörter</span>
         <span class="session-timer" id="sessionTimer">00:00</span>
     </div>
@@ -830,13 +841,19 @@
             </div>
         </details>
 
+        <!-- Repeated Reading: WPM Verlauf (shown when ≥2 attempts) -->
+        <div id="fbRepeatBars" style="display:none;"></div>
+
         <hr class="divider" style="margin-top:16px;">
 
         <button class="btn btn-primary" onclick="nextPage()">
             → Nächste Seite
         </button>
-        <button class="btn btn-ghost" onclick="retryPage()">
-            ↺ Nochmal lesen
+        <button class="btn btn-secondary" id="fbRepeatBtn" onclick="startRepeat()" style="display:none;">
+            🔄 Nochmal lesen
+        </button>
+        <button class="btn btn-ghost" id="fbFinishRepeatBtn" onclick="finishRepeatText()" style="display:none;">
+            ✓ Fertig mit diesem Text
         </button>
         <button class="btn btn-ghost" onclick="endSession()">
             ✓ Session beenden
@@ -887,6 +904,37 @@
 
         <button class="btn btn-primary" onclick="goToSmiley()" style="margin-top:20px">
             → Weiter
+        </button>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 4b: REPEAT TEXT SUMMARY
+══════════════════════════════════ -->
+<div class="screen" id="screenRepeatSummary">
+    <div class="session-header">
+        <span class="page-badge" id="rsSummaryPageBadge">Wiederholung</span>
+        <span class="session-timer" id="rsTimer">00:00</span>
+    </div>
+
+    <div class="card">
+        <div class="summary-hero">
+            <div class="summary-emoji" id="rsSummaryEmoji">🚀</div>
+            <div class="summary-message" id="rsSummaryHeadline">Super gemacht!</div>
+            <div class="summary-sub" id="rsSummarySub"></div>
+        </div>
+
+        <div style="text-align:center; font-size:0.85em; color:var(--muted); margin-top:4px;" id="rsSummaryCount"></div>
+
+        <div id="rsSummaryBars"></div>
+
+        <hr class="divider" style="margin-top:20px;">
+
+        <button class="btn btn-primary" onclick="nextPage()">
+            → Nächste Seite
+        </button>
+        <button class="btn btn-ghost" onclick="endSession()">
+            ✓ Session beenden
         </button>
     </div>
 </div>
@@ -1027,6 +1075,11 @@ const state = {
     referenceWords: [],
     pages: [], // {wpm, accuracy, duration, wordCount, errors, alignment}
     currentProfile: null,
+    // Repeated Reading
+    currentRepeatGroupId: null,   // shared ID for all attempts of same text
+    currentAttemptNumber: 1,      // which attempt we're on (1, 2, 3...)
+    isRepeatedRead: false,        // true = "Nochmal lesen" flow (no photo needed)
+    priorRepeatAttempts: [],      // attempts from previous sessions for same text
 };
 
 // ══════════════════════════════════
@@ -1219,6 +1272,7 @@ function startSessionTimer() {
         const display = `${m}:${s}`;
         document.getElementById('sessionTimer').textContent = display;
         document.getElementById('feedbackTimer').textContent = display;
+        document.getElementById('rsTimer').textContent = display;
     }, 1000);
 }
 
@@ -1260,6 +1314,10 @@ function getRecDurationSeconds() {
 function loadPageScreen() {
     // Update badge
     document.getElementById('pageBadge').textContent = `Seite ${state.currentPage}`;
+
+    // Hide attempt badge (only shown during repeated reading)
+    const attemptBadge = document.getElementById('attemptBadge');
+    if (attemptBadge) attemptBadge.style.display = 'none';
 
     // Reset photo step
     document.getElementById('stepPhoto').style.display = 'block';
@@ -1366,6 +1424,26 @@ async function handleImage(file) {
             document.getElementById('wordCount').textContent = `${words.length} Wörter`;
             document.getElementById('toRecordBtn').disabled = false;
             showStatus(`✅ ${words.length} Wörter erkannt – bei Bedarf korrigieren`, 'success', 'ocrStatus');
+
+            // Check for prior sessions with same text (session-übergreifend)
+            const normalizedOcr = normalizeText(text);
+            const priorAttempts = findPriorAttempts(normalizedOcr);
+            if (priorAttempts.length > 0) {
+                const lastWpm = priorAttempts[priorAttempts.length - 1].wpm;
+                const lastDate = new Date(priorAttempts[priorAttempts.length - 1].date)
+                    .toLocaleDateString('de-DE', {day: 'numeric', month: 'short'});
+                showStatus(
+                    `✅ ${words.length} Wörter erkannt · 📖 Diesen Text kennst du schon! Letztes Mal: ${lastWpm} WPM (${lastDate})`,
+                    'success', 'ocrStatus'
+                );
+                // Pre-load prior attempts so feedback screen can show them
+                state.priorRepeatAttempts = priorAttempts.map((a, i) => ({...a, dateLabel: a.dateLabel || `${i+1}. Versuch`}));
+                // Re-use the same repeatGroupId from prior attempts if available
+                const existingGroupId = priorAttempts.find(a => a.repeatGroupId)?.repeatGroupId;
+                if (existingGroupId) state.currentRepeatGroupId = existingGroupId;
+            } else {
+                state.priorRepeatAttempts = [];
+            }
         } else {
             showStatus('⚠️ Kein Text gefunden. Bitte nochmal versuchen oder manuell eingeben.', 'warning', 'ocrStatus');
         }
@@ -1606,6 +1684,12 @@ async function processRecording() {
         const alignment = alignWords(state.referenceWords, recognized);
         const accuracy = calculateAccuracyFromAlignment(alignment, state.referenceWords.length);
 
+        // Init repeat group on first attempt of this text
+        if (!state.currentRepeatGroupId) {
+            state.currentRepeatGroupId = generateId();
+            state.currentAttemptNumber = 1;
+        }
+
         // Save page result with full error data
         state.pages.push({
             page: state.currentPage,
@@ -1617,10 +1701,14 @@ async function processRecording() {
             rawTranscript,
             wordTimings,   // [{word, start, end}] from Whisper verbose_json
             referenceText: state.referenceWords.join(' '),  // normalized reference
+            repeatGroupId: state.currentRepeatGroupId,
+            attemptNumber: state.currentAttemptNumber,
         });
 
-        // Update live word counter
-        const totalWords = state.pages.reduce((s, p) => s + (p.wordCount || 0), 0);
+        // Update live word counter (only count unique page reads, not repeats)
+        const uniquePages = {};
+        state.pages.forEach(p => { if (!uniquePages[p.page] || p.attemptNumber === 1) uniquePages[p.page] = p; });
+        const totalWords = Object.values(uniquePages).reduce((s, p) => s + (p.wordCount || 0), 0);
         const counterText = `${totalWords} Wörter`;
         document.getElementById('sessionWordCounter').textContent = counterText;
         document.getElementById('feedbackWordCounter').textContent = counterText;
@@ -1693,7 +1781,191 @@ function showFeedback(wpm, accuracy, alignment) {
         }
     }).join(' ');
 
+    // ── Repeated Reading: WPM Verlauf ──
+    const sessionAttempts = getCurrentSessionAttempts();
+    const allPrior = state.priorRepeatAttempts || [];
+    const allAttemptsForBars = [
+        ...allPrior.map((a, i) => ({...a, dateLabel: a.dateLabel || `${i+1}. Versuch`})),
+        ...sessionAttempts.map((a, i) => ({...a, dateLabel: `${allPrior.length + i + 1}. Versuch`}))
+    ];
+    const repeatBarsEl = document.getElementById('fbRepeatBars');
+    if (allAttemptsForBars.length >= 2) {
+        repeatBarsEl.innerHTML = buildRepeatBarsHtml(allAttemptsForBars);
+        repeatBarsEl.style.display = 'block';
+    } else {
+        repeatBarsEl.innerHTML = '';
+        repeatBarsEl.style.display = 'none';
+    }
+
+    // ── Button visibility ──
+    const hasRepeatAttempts = sessionAttempts.length >= 1 || allPrior.length >= 1;
+    // "Nochmal lesen" → repeat same text
+    document.getElementById('fbRepeatBtn').style.display = 'block';
+    // "Fertig mit diesem Text" → show text summary (only if ≥2 total attempts)
+    const totalAttempts = allPrior.length + sessionAttempts.length;
+    document.getElementById('fbFinishRepeatBtn').style.display = totalAttempts >= 2 ? 'block' : 'none';
+
     showScreen('screenFeedback');
+}
+
+// ══════════════════════════════════
+// REPEATED READING HELPERS
+// ══════════════════════════════════
+
+function generateId() {
+    return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+// Levenshtein similarity between two strings, returns 0-1
+function textSimilarity(a, b) {
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    // Word-level comparison for speed
+    const wa = a.split(/\s+/), wb = b.split(/\s+/);
+    const m = wa.length, n = wb.length;
+    const dp = Array.from({length: m+1}, (_, i) => Array.from({length: n+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (wa[i-1] === wb[j-1]) dp[i][j] = dp[i-1][j-1];
+            else dp[i][j] = 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+        }
+    }
+    const maxLen = Math.max(m, n);
+    return maxLen === 0 ? 1 : 1 - dp[m][n] / maxLen;
+}
+
+// Find previous attempts for a given referenceText across all saved sessions
+function findPriorAttempts(referenceText) {
+    if (!referenceText) return [];
+    const sessions = loadSessions();
+    const results = [];
+    for (const session of sessions) {
+        if (!session.pageDetails) continue;
+        for (const page of session.pageDetails) {
+            if (!page.referenceText) continue;
+            const sim = textSimilarity(referenceText, page.referenceText);
+            if (sim >= 0.85) {
+                results.push({
+                    date: session.date,
+                    wpm: page.wpm,
+                    accuracy: page.accuracy,
+                    repeatGroupId: page.repeatGroupId || null,
+                    attemptNumber: page.attemptNumber || 1,
+                    referenceText: page.referenceText,
+                    dateLabel: new Date(session.date).toLocaleDateString('de-DE', {day:'numeric', month:'short'}),
+                });
+            }
+        }
+    }
+    results.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return results;
+}
+
+// Get all repeat attempts for current text from state.pages (current session)
+function getCurrentSessionAttempts() {
+    if (!state.currentRepeatGroupId) return [];
+    return state.pages.filter(p => p.repeatGroupId === state.currentRepeatGroupId);
+}
+
+// Build WPM bar chart HTML for repeat attempts
+function buildRepeatBarsHtml(attempts) {
+    if (attempts.length < 1) return '';
+    const maxWpm = Math.max(...attempts.map(a => a.wpm));
+    const bars = attempts.map((a, i) => {
+        const pct = maxWpm > 0 ? Math.round((a.wpm / maxWpm) * 100) : 100;
+        const isBest = a.wpm === maxWpm && i === attempts.length - 1;
+        const label = a.dateLabel || `${i+1}. Versuch`;
+        return `
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <div style="width:75px; font-size:0.8em; color:var(--muted); text-align:right; flex-shrink:0;">${label}</div>
+            <div style="flex:1; background:#eef0f8; border-radius:6px; height:22px; overflow:hidden;">
+                <div style="width:${pct}%; height:100%; background:${isBest ? 'var(--primary)' : '#a8c8f0'}; border-radius:6px; transition:width 0.5s ease;"></div>
+            </div>
+            <div style="width:60px; font-size:0.85em; font-weight:700; color:${isBest ? 'var(--primary)' : 'var(--text)'};">${a.wpm} WPM${isBest ? ' ⭐' : ''}</div>
+        </div>`;
+    });
+    return `<div style="margin-top:14px; padding:14px; background:#f5f7ff; border-radius:12px;">
+        <div style="font-size:0.75em; font-weight:700; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.06em;">Deine Versuche</div>
+        ${bars.join('')}
+    </div>`;
+}
+
+// Start a repeated reading (re-use same referenceText, no photo)
+function startRepeat() {
+    state.isRepeatedRead = true;
+    state.currentAttemptNumber++;
+
+    showScreen('screenPage');
+    document.getElementById('stepPhoto').style.display = 'none';
+    document.getElementById('stepRecord').style.display = 'block';
+    document.getElementById('startRecBtn').style.display = 'block';
+    const stopBtn = document.getElementById('stopRecBtn');
+    stopBtn.style.display = 'none';
+    stopBtn.disabled = false;
+    stopBtn.textContent = '■ Fertig';
+    document.getElementById('recIndicator').classList.remove('show');
+    document.getElementById('recTimer').textContent = '00:00';
+    document.getElementById('recordStatus').innerHTML = '';
+    state.audioChunks = [];
+
+    // Show attempt badge
+    const badge = document.getElementById('attemptBadge');
+    badge.textContent = `${state.currentAttemptNumber}. Versuch`;
+    badge.style.display = 'inline-block';
+}
+
+// Show repeat text summary screen
+function finishRepeatText() {
+    const sessionAttempts = getCurrentSessionAttempts();
+    // Merge prior (from other sessions) + current session attempts with labels
+    const allAttempts = [
+        ...state.priorRepeatAttempts,
+        ...sessionAttempts.map((a, i) => ({
+            ...a,
+            dateLabel: state.priorRepeatAttempts.length + i + 1 <= 1
+                ? '1. Versuch'
+                : `${state.priorRepeatAttempts.length + i + 1}. Versuch`,
+        }))
+    ];
+    // Re-label sequentially
+    allAttempts.forEach((a, i) => { if (!a.dateLabel) a.dateLabel = `${i+1}. Versuch`; });
+    buildRepeatTextSummary(allAttempts);
+    showScreen('screenRepeatSummary');
+}
+
+function buildRepeatTextSummary(allAttempts) {
+    if (allAttempts.length === 0) return;
+    const first = allAttempts[0];
+    const last = allAttempts[allAttempts.length - 1];
+    const diff = last.wpm - first.wpm;
+    const profileName = loadProfiles().find(p => p.id === getCurrentProfile())?.name || '';
+
+    let emoji, headline, sub;
+    if (allAttempts.length === 1) {
+        emoji = '📖';
+        headline = '1. Versuch geschafft!';
+        sub = 'Lies den Text nochmal – du wirst besser!';
+    } else if (diff > 2) {
+        emoji = '🚀';
+        headline = `+${diff} Wörter pro Minute!`;
+        sub = `Von ${first.wpm} auf ${last.wpm} WPM${profileName ? ' – super, ' + profileName + '!' : '!'}`;
+    } else if (diff >= -2) {
+        emoji = '👍';
+        headline = 'Text sitzt!';
+        sub = `${last.wpm} WPM – beim nächsten Mal noch schneller!`;
+    } else {
+        emoji = '💪';
+        headline = 'Warm-up war der erste Versuch!';
+        sub = `Du schaffst das${profileName ? ', ' + profileName : ''} – probier\'s nochmal!`;
+    }
+
+    document.getElementById('rsSummaryEmoji').textContent = emoji;
+    document.getElementById('rsSummaryHeadline').textContent = headline;
+    document.getElementById('rsSummarySub').textContent = sub;
+    document.getElementById('rsSummaryCount').textContent =
+        `${allAttempts.length}× denselben Text gelesen`;
+    document.getElementById('rsSummaryBars').innerHTML =
+        allAttempts.length >= 2 ? buildRepeatBarsHtml(allAttempts) : '';
 }
 
 // ══════════════════════════════════
@@ -1778,6 +2050,10 @@ function calculateAccuracy(reference, recognized) {
 // ══════════════════════════════════
 function nextPage() {
     state.currentPage++;
+    state.currentRepeatGroupId = null;
+    state.currentAttemptNumber = 1;
+    state.isRepeatedRead = false;
+    state.priorRepeatAttempts = [];
     loadPageScreen();
     showScreen('screenPage');
 }
@@ -1791,6 +2067,10 @@ function endSession() {
 function startSession() {
     state.currentPage = 1;
     state.pages = [];
+    state.currentRepeatGroupId = null;
+    state.currentAttemptNumber = 1;
+    state.isRepeatedRead = false;
+    state.priorRepeatAttempts = [];
     startSessionTimer();
     loadPageScreen();
     // Reset word counter
@@ -1807,9 +2087,19 @@ function buildSummary() {
     const pages = state.pages;
     if (pages.length === 0) return;
 
+    // For summary metrics, use only the BEST attempt per page (repeated reading: take last/best)
+    const pageGroups = {};
+    pages.forEach(p => {
+        if (!pageGroups[p.page]) pageGroups[p.page] = [];
+        pageGroups[p.page].push(p);
+    });
+    const representativePages = Object.values(pageGroups).map(group =>
+        group.reduce((best, p) => p.wpm > best.wpm ? p : best, group[0])
+    );
+
     const totalDurationMin = getSessionDurationMinutes();
-    const avgWpm = Math.round(pages.reduce((s, p) => s + p.wpm, 0) / pages.length);
-    const avgAccuracy = Math.round(pages.reduce((s, p) => s + p.accuracy, 0) / pages.length);
+    const avgWpm = Math.round(representativePages.reduce((s, p) => s + p.wpm, 0) / representativePages.length);
+    const avgAccuracy = Math.round(representativePages.reduce((s, p) => s + p.accuracy, 0) / representativePages.length);
 
     // Emoji & message based on performance
     const profileName = loadProfiles().find(p => p.id === getCurrentProfile())?.name || '';
@@ -1954,14 +2244,25 @@ let pendingSessionData = null;
 function goToSmiley() {
     // Build session data to save after mood is collected
     const pages = state.pages;
-    const totalDurationMin = getSessionDurationMinutes();
-    const avgWpm      = Math.round(pages.reduce((s, p) => s + p.wpm, 0) / pages.length);
-    const avgAccuracy = Math.round(pages.reduce((s, p) => s + p.accuracy, 0) / pages.length);
-    const totalWords  = pages.reduce((s, p) => s + (p.wordCount || 0), 0);
 
-    // Collect frequent errors across pages
-    const errorCounts = {};
+    // For metrics: use best attempt per page
+    const pageGroups = {};
     pages.forEach(p => {
+        if (!pageGroups[p.page]) pageGroups[p.page] = [];
+        pageGroups[p.page].push(p);
+    });
+    const repPages = Object.values(pageGroups).map(group =>
+        group.reduce((best, p) => p.wpm > best.wpm ? p : best, group[0])
+    );
+
+    const totalDurationMin = getSessionDurationMinutes();
+    const avgWpm      = Math.round(repPages.reduce((s, p) => s + p.wpm, 0) / repPages.length);
+    const avgAccuracy = Math.round(repPages.reduce((s, p) => s + p.accuracy, 0) / repPages.length);
+    const totalWords  = repPages.reduce((s, p) => s + (p.wordCount || 0), 0);
+
+    // Collect frequent errors across representative pages
+    const errorCounts = {};
+    repPages.forEach(p => {
         if (!p.alignment) return;
         p.alignment
             .filter(a => a.type === 'substitution' || a.type === 'omission')
@@ -1976,13 +2277,13 @@ function goToSmiley() {
         id: Date.now(),
         date: new Date().toISOString(),
         durationMin: Math.round(totalDurationMin),
-        pageCount: pages.length,
+        pageCount: repPages.length,
         avgWpm,
         avgAccuracy,
         totalWords,
         topErrors,
         mood: null,
-        // Vollständige Seiten-Details für Lesefluss-Analyse:
+        // Vollständige Seiten-Details inkl. Repeated Reading Daten:
         pageDetails: pages.map(p => ({
             page: p.page,
             wpm: p.wpm,
@@ -1993,6 +2294,8 @@ function goToSmiley() {
             rawTranscript: p.rawTranscript || '',
             alignment: p.alignment || [],
             wordTimings: p.wordTimings || [],
+            repeatGroupId: p.repeatGroupId || null,
+            attemptNumber: p.attemptNumber || 1,
         })),
     };
 
