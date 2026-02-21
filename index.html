@@ -390,6 +390,7 @@
         .word-wrong    { color: var(--red);   font-weight: 700; margin-right: 4px; }
         .word-omitted  { color: #94a3b8; font-weight: 600; margin-right: 4px; text-decoration: line-through; }
         .word-added    { color: var(--blue);  font-weight: 600; margin-right: 4px; font-style: italic; }
+        .word-slow     { color: var(--green); font-weight: 700; margin-right: 4px; border-bottom: 2.5px solid #f97316; }
 
         .legend {
             display: flex;
@@ -1711,7 +1712,11 @@ async function processRecording() {
         document.getElementById('sessionWordCounter').textContent = counterText;
         document.getElementById('feedbackWordCounter').textContent = counterText;
 
-        showFeedback(wpm, accuracy, alignment);
+        const slowWords = analyzeSlowWords(alignment, wordTimings);
+        // Attach slowWords to the last pushed page entry
+        state.pages[state.pages.length - 1].slowWords = slowWords;
+
+        showFeedback(wpm, accuracy, alignment, slowWords);
 
     } catch (err) {
         console.error('Processing error:', err);
@@ -1723,7 +1728,7 @@ async function processRecording() {
 // ══════════════════════════════════
 // MINI FEEDBACK
 // ══════════════════════════════════
-function showFeedback(wpm, accuracy, alignment) {
+function showFeedback(wpm, accuracy, alignment, slowWords = []) {
     document.getElementById('feedbackPageBadge').textContent = `Seite ${state.currentPage}`;
     document.getElementById('feedbackTitle').textContent = `Seite ${state.currentPage} geschafft!`;
     document.getElementById('fbWpm').textContent = wpm;
@@ -1757,6 +1762,7 @@ function showFeedback(wpm, accuracy, alignment) {
         if (substitutions > 0) pills.push(`<span class="pill pill-red">${substitutions} falsch</span>`);
         if (omissions > 0)     pills.push(`<span class="pill pill-grey">${omissions} ausgelassen</span>`);
         if (additions > 0)     pills.push(`<span class="pill pill-blue">${additions} hinzugefügt</span>`);
+        if (slowWords.length > 0) pills.push(`<span class="pill" style="background:#fff7ed;color:#f97316;">${slowWords.length} 🐢 langsam</span>`);
         errSummary.innerHTML = pills.join('');
         errSummary.style.display = 'flex';
     } else {
@@ -1765,9 +1771,13 @@ function showFeedback(wpm, accuracy, alignment) {
 
     // Word-by-word view with new CSS classes
     const wordView = document.getElementById('fbWordView');
-    wordView.innerHTML = alignment.map(a => {
+    const slowSet = new Set(slowWords.map(s => s.refIndex));
+    wordView.innerHTML = alignment.map((a, i) => {
         switch(a.type) {
             case 'correct':
+                if (slowSet.has(i)) {
+                    return `<span class="word-slow" title="🐢 langsam (${slowWords.find(s => s.refIndex === i)?.ratio}x)">${a.ref}</span>`;
+                }
                 return `<span class="word-correct">${a.ref}</span>`;
             case 'substitution':
                 return `<span class="word-wrong" title="gesagt: ${a.rec}"><s>${a.ref}</s>→${a.rec}</span>`;
@@ -1973,6 +1983,92 @@ function buildRepeatTextSummary(allAttempts) {
 // WORD ALIGNMENT (Needleman-Wunsch)
 // ══════════════════════════════════
 // Returns array of {type, ref, rec} for each word
+// ══════════════════════════════════
+// SLOW WORD ANALYSIS
+// ══════════════════════════════════
+
+// Counts syllables in a German word (vowel-group counting)
+function countSyllables(word) {
+    const normalized = word.toLowerCase()
+        .replace(/ei|au|eu|äu|ie/g, 'X'); // diphthongs count as 1 vowel
+    const vowels = normalized.match(/[aeiouäöüX]/g);
+    return Math.max(1, vowels ? vowels.length : 1);
+}
+
+// Analyzes which correctly-read words were suspiciously slow.
+// Returns array of { word, refIndex, syllables, msPerSyllable, ratio }
+// Uses BOTH a relative criterion (ratio vs. session median) AND
+// an absolute floor (ms/syllable), so fluent readers get no false positives.
+const SLOW_WORD_ABS_THRESHOLD = 400;  // ms/syllable – below this: never "slow"
+const SLOW_WORD_RELATIVE_FACTOR = 1.8; // must be this many times slower than median
+
+function analyzeSlowWords(alignment, wordTimings) {
+    if (!wordTimings || wordTimings.length < 3) return [];
+
+    // Build timing map: for each whisper word, calc ms/syllable
+    // Use w[i].end - w[i-1].end as "total time for this word" (incl. pause before it)
+    const timedWords = wordTimings.map((w, i) => {
+        const totalMs = i === 0
+            ? (w.end - w.start) * 1000          // first word: just duration
+            : (w.end - wordTimings[i - 1].end) * 1000; // subsequent: includes pause before
+        const syllables = countSyllables(w.word);
+        return {
+            word: w.word.toLowerCase(),
+            totalMs: Math.max(0, totalMs),
+            syllables,
+            msPerSyllable: Math.max(0, totalMs) / syllables,
+        };
+    });
+
+    // Session median ms/syllable (robust against outliers)
+    const allMps = timedWords.map(t => t.msPerSyllable).sort((a, b) => a - b);
+    const mid = Math.floor(allMps.length / 2);
+    const medianMps = allMps.length % 2 !== 0
+        ? allMps[mid]
+        : (allMps[mid - 1] + allMps[mid]) / 2;
+
+    const slowThresholdMps = medianMps * SLOW_WORD_RELATIVE_FACTOR;
+
+    // Build lookup: normalized word → timings (a word may appear multiple times)
+    // We match in order, consuming each timing entry once
+    const timingQueue = [...timedWords];
+
+    const slowWords = [];
+    let timingIdx = 0;
+
+    alignment.forEach((a, refIndex) => {
+        if (a.type !== 'correct') return; // only evaluate correctly read words
+
+        // Find the next timing entry that matches this word
+        const refWord = a.ref.toLowerCase();
+        let found = null;
+        for (let t = timingIdx; t < timingQueue.length; t++) {
+            if (timingQueue[t].word === refWord || timingQueue[t].word.replace(/[.,!?]/g, '') === refWord) {
+                found = timingQueue[t];
+                timingIdx = t + 1;
+                break;
+            }
+        }
+        if (!found) return;
+
+        // Apply dual criterion
+        if (
+            found.msPerSyllable > SLOW_WORD_ABS_THRESHOLD &&
+            found.msPerSyllable > slowThresholdMps
+        ) {
+            slowWords.push({
+                word: a.ref,
+                refIndex,
+                syllables: found.syllables,
+                msPerSyllable: Math.round(found.msPerSyllable),
+                ratio: Math.round((found.msPerSyllable / medianMps) * 10) / 10,
+            });
+        }
+    });
+
+    return slowWords;
+}
+
 // types: 'correct' | 'substitution' | 'omission' | 'addition'
 function alignWords(reference, recognized) {
     const m = reference.length;
@@ -2295,6 +2391,7 @@ function goToSmiley() {
             rawTranscript: p.rawTranscript || '',
             alignment: p.alignment || [],
             wordTimings: p.wordTimings || [],
+            slowWords: p.slowWords || [],
             repeatGroupId: p.repeatGroupId || null,
             attemptNumber: p.attemptNumber || 1,
         })),
