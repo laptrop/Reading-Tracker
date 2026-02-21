@@ -1705,10 +1705,8 @@ async function processRecording() {
             attemptNumber: state.currentAttemptNumber,
         });
 
-        // Update live word counter (only count unique page reads, not repeats)
-        const uniquePages = {};
-        state.pages.forEach(p => { if (!uniquePages[p.page] || p.attemptNumber === 1) uniquePages[p.page] = p; });
-        const totalWords = Object.values(uniquePages).reduce((s, p) => s + (p.wordCount || 0), 0);
+        // Update live word counter – alle gelesenen Wörter zählen (auch Wiederholungen)
+        const totalWords = state.pages.reduce((s, p) => s + (p.wordCount || 0), 0);
         const counterText = `${totalWords} Wörter`;
         document.getElementById('sessionWordCounter').textContent = counterText;
         document.getElementById('feedbackWordCounter').textContent = counterText;
@@ -1870,18 +1868,21 @@ function getCurrentSessionAttempts() {
 // Build WPM bar chart HTML for repeat attempts
 function buildRepeatBarsHtml(attempts) {
     if (attempts.length < 1) return '';
-    const maxWpm = Math.max(...attempts.map(a => a.wpm));
+    const wpms = attempts.map(a => Number(a.wpm) || 0);
+    const maxWpm = Math.max(...wpms);
+    if (maxWpm === 0) return '';
     const bars = attempts.map((a, i) => {
-        const pct = maxWpm > 0 ? Math.round((a.wpm / maxWpm) * 100) : 100;
-        const isBest = a.wpm === maxWpm && i === attempts.length - 1;
+        const wpmVal = Number(a.wpm) || 0;
+        const pct = Math.max(8, Math.round((wpmVal / maxWpm) * 100)); // min 8% so bar is always visible
+        const isBest = wpmVal === maxWpm;
         const label = a.dateLabel || `${i+1}. Versuch`;
         return `
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
             <div style="width:75px; font-size:0.8em; color:var(--muted); text-align:right; flex-shrink:0;">${label}</div>
             <div style="flex:1; background:#eef0f8; border-radius:6px; height:22px; overflow:hidden;">
-                <div style="width:${pct}%; height:100%; background:${isBest ? 'var(--primary)' : '#a8c8f0'}; border-radius:6px; transition:width 0.5s ease;"></div>
+                <div style="width:${pct}%; height:100%; background:${isBest ? 'var(--primary)' : '#a8c8f0'}; border-radius:6px;"></div>
             </div>
-            <div style="width:60px; font-size:0.85em; font-weight:700; color:${isBest ? 'var(--primary)' : 'var(--text)'};">${a.wpm} WPM${isBest ? ' ⭐' : ''}</div>
+            <div style="width:60px; font-size:0.85em; font-weight:700; color:${isBest ? 'var(--primary)' : 'var(--text)'};">${wpmVal} WPM${isBest ? ' ⭐' : ''}</div>
         </div>`;
     });
     return `<div style="margin-top:14px; padding:14px; background:#f5f7ff; border-radius:12px;">
