@@ -2259,7 +2259,7 @@ function goToSmiley() {
     const totalDurationMin = getSessionDurationMinutes();
     const avgWpm      = Math.round(repPages.reduce((s, p) => s + p.wpm, 0) / repPages.length);
     const avgAccuracy = Math.round(repPages.reduce((s, p) => s + p.accuracy, 0) / repPages.length);
-    const totalWords  = repPages.reduce((s, p) => s + (p.wordCount || 0), 0);
+    const totalWords  = pages.reduce((s, p) => s + (p.wordCount || 0), 0); // alle Versuche zählen
 
     // Collect frequent errors across representative pages
     const errorCounts = {};
