@@ -1074,6 +1074,7 @@ const state = {
     mediaRecorder: null,
     audioChunks: [],
     referenceWords: [],
+    sentenceStartIndices: new Set(),
     pages: [], // {wpm, accuracy, duration, wordCount, errors, alignment}
     currentProfile: null,
     // Repeated Reading
@@ -1461,6 +1462,7 @@ function goToRecord() {
     const text = document.getElementById('referenceText').value.trim();
     if (!text) return;
     state.referenceWords = normalizeText(text).split(/\s+/).filter(w => w.length > 0);
+    state.sentenceStartIndices = buildSentenceStartIndices(text);
 
     document.getElementById('stepPhoto').style.display = 'none';
     document.getElementById('stepRecord').style.display = 'block';
@@ -1712,7 +1714,7 @@ async function processRecording() {
         document.getElementById('sessionWordCounter').textContent = counterText;
         document.getElementById('feedbackWordCounter').textContent = counterText;
 
-        const slowWords = analyzeSlowWords(alignment, wordTimings);
+        const slowWords = analyzeSlowWords(alignment, wordTimings, state.sentenceStartIndices);
         // Attach slowWords to the last pushed page entry
         state.pages[state.pages.length - 1].slowWords = slowWords;
 
@@ -1995,14 +1997,31 @@ function countSyllables(word) {
     return Math.max(1, vowels ? vowels.length : 1);
 }
 
+// Builds a Set of word-indices (in the normalized word array) that begin a sentence.
+// Index 0 is always a sentence start. After each token ending in . ? ! the next word is too.
+function buildSentenceStartIndices(rawText) {
+    const starts = new Set([0]);
+    const tokens = rawText.trim().split(/\s+/);
+    let wordIdx = 0;
+    for (let i = 0; i < tokens.length; i++) {
+        if (/[.?!]"?\s*$/.test(tokens[i])) {
+            starts.add(wordIdx + 1);
+        }
+        wordIdx++;
+    }
+    return starts;
+}
+
 // Analyzes which correctly-read words were suspiciously slow.
 // Returns array of { word, refIndex, syllables, msPerSyllable, ratio }
 // Uses BOTH a relative criterion (ratio vs. session median) AND
 // an absolute floor (ms/syllable), so fluent readers get no false positives.
+// Sentence-initial words get a relaxed threshold (pause after period is normal).
 const SLOW_WORD_ABS_THRESHOLD = { 1: 500, 2: 400, 3: 350 }; // ms/syllable by syllable count (3 = 3+)
+const SLOW_WORD_SENTENCE_MULTIPLIER = 1.6; // sentence-start words need this much higher threshold
 const SLOW_WORD_RELATIVE_FACTOR = 2.2; // must be this many times slower than median
 
-function analyzeSlowWords(alignment, wordTimings) {
+function analyzeSlowWords(alignment, wordTimings, sentenceStartIndices = new Set()) {
     if (!wordTimings || wordTimings.length < 3) return [];
 
     // Build timing map: for each whisper word, calc ms/syllable
@@ -2052,7 +2071,10 @@ function analyzeSlowWords(alignment, wordTimings) {
         if (!found) return;
 
         // Apply dual criterion – absolute threshold depends on syllable count
-        const absThreshold = SLOW_WORD_ABS_THRESHOLD[Math.min(found.syllables, 3)];
+        // Sentence-initial words get a relaxed threshold (pause after period is normal)
+        const isSentenceStart = sentenceStartIndices.has(refIndex);
+        const absThreshold = SLOW_WORD_ABS_THRESHOLD[Math.min(found.syllables, 3)]
+            * (isSentenceStart ? SLOW_WORD_SENTENCE_MULTIPLIER : 1);
         if (
             found.msPerSyllable > absThreshold &&
             found.msPerSyllable > slowThresholdMps
