@@ -390,7 +390,7 @@
         .word-wrong    { color: var(--red);   font-weight: 700; margin-right: 4px; }
         .word-omitted  { color: #94a3b8; font-weight: 600; margin-right: 4px; text-decoration: line-through; }
         .word-added    { color: var(--blue);  font-weight: 600; margin-right: 4px; font-style: italic; }
-        .word-slow     { color: var(--green); font-weight: 700; margin-right: 4px; border-bottom: 2.5px solid #f97316; }
+        .word-slow     { color: #f97316; font-weight: 700; margin-right: 4px; }
 
         .legend {
             display: flex;
@@ -1999,8 +1999,8 @@ function countSyllables(word) {
 // Returns array of { word, refIndex, syllables, msPerSyllable, ratio }
 // Uses BOTH a relative criterion (ratio vs. session median) AND
 // an absolute floor (ms/syllable), so fluent readers get no false positives.
-const SLOW_WORD_ABS_THRESHOLD = 400;  // ms/syllable – below this: never "slow"
-const SLOW_WORD_RELATIVE_FACTOR = 1.8; // must be this many times slower than median
+const SLOW_WORD_ABS_THRESHOLD = { 1: 500, 2: 400, 3: 350 }; // ms/syllable by syllable count (3 = 3+)
+const SLOW_WORD_RELATIVE_FACTOR = 2.2; // must be this many times slower than median
 
 function analyzeSlowWords(alignment, wordTimings) {
     if (!wordTimings || wordTimings.length < 3) return [];
@@ -2051,9 +2051,10 @@ function analyzeSlowWords(alignment, wordTimings) {
         }
         if (!found) return;
 
-        // Apply dual criterion
+        // Apply dual criterion – absolute threshold depends on syllable count
+        const absThreshold = SLOW_WORD_ABS_THRESHOLD[Math.min(found.syllables, 3)];
         if (
-            found.msPerSyllable > SLOW_WORD_ABS_THRESHOLD &&
+            found.msPerSyllable > absThreshold &&
             found.msPerSyllable > slowThresholdMps
         ) {
             slowWords.push({
